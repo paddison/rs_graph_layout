@@ -13,7 +13,7 @@ use time::Instant;
 
 fn main() {
     // create graph
-    let layout = GraphLayout::new_from_num_nodes(63, 2);
+    let layout = GraphLayout::new_from_num_nodes(50, 2);
     let _ = layout.build_edges_and_write_to_file("1000_2");
     let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
     // let g = StableDiGraph::<i32, i32>::from_edges(
@@ -64,43 +64,26 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
         let mut index_of_node = HashMap::<NodeIndex, usize>::new();  // index for each node
         let mut nodes_in_level: Vec<Vec<Option<NodeIndex>>> = vec![vec![]];  // nodes in each level
         let mut number_of_levels = 1;  // total number of levels
-        let mut single_dep_neighbours = HashMap::new(); // list of neighbours with only one dependency for each node
-        let mut multi_dep_neighbours = HashMap::new();   // list of neighbours with more than one dependency for each node
-        let mut single_dep_nodes = Vec::new();  // list of nodes with exactly one dependency
-        let mut multi_dep_nodes = Vec::new();  // list of nodes with more than one dependency
+        let mut neighbours = HashMap::new();   // list of neighbours with more than one dependency for each node
+        let mut nodes = Vec::new();  // list of nodes with more than one dependency
 
         // fill predecessors_of_node, successors_of_node etc.
         for node in g.node_indices() {
-            single_dep_neighbours.insert(node, Vec::new());
-            multi_dep_neighbours.insert(node, Vec::new());
+            neighbours.insert(node, Vec::new());
             for neighbor in g.neighbors_undirected(node) {
-                if g.neighbors_undirected(neighbor).count() == 1 {
-                    let entry = single_dep_neighbours.entry(node)
-                        .or_insert(Vec::new());
-                    entry.push(neighbor);
-                } else {
-                    let entry = multi_dep_neighbours.entry(node)
-                        .or_insert(Vec::new());
-                    entry.push(neighbor);
-                }
+                let entry = neighbours.entry(node).or_insert(Vec::new());
+                entry.push(neighbor);
             }
 
-            if g.neighbors_undirected(node).count() == 1 {
-                single_dep_nodes.push(node);
-            } else {
-                multi_dep_nodes.push(node);
-            }
+            nodes.push(node);
         }
 
-        // create subgraph with multi dependency nodes only
-        let mut multi_dep_nodes_subgraph = g.clone();
-        multi_dep_nodes_subgraph.retain_nodes(|_, node| multi_dep_nodes.contains(&node));
 
-        // arrange all nodes of subgraph in levels,
-        for node in toposort(&multi_dep_nodes_subgraph, None).unwrap() {
+        // arrange all nodes of in levels,
+        for node in toposort(&g, None).unwrap() {
             // find maximum level of predecessors
             let mut max_predecessor_level: usize = 0;
-            for predecessor in multi_dep_nodes_subgraph.neighbors_directed(node, Direction::Incoming) {
+            for predecessor in g.neighbors_directed(node, Direction::Incoming) {
                 max_predecessor_level = std::cmp::max(
                     max_predecessor_level,
                     *level_of_node.get(&predecessor).unwrap_or(&0)
@@ -118,10 +101,10 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
         }
 
         // arrange vertically: moves nodes up as far as possible
-        for node in multi_dep_nodes_subgraph.node_indices() {
+        for node in g.node_indices() {
             // find minimum level of successors
             let min_successor_level = *std::cmp::min(
-                multi_dep_nodes_subgraph
+                g
                     .neighbors_directed(node, Direction::Outgoing)
                     .map(|node| level_of_node.get(&node))
                     .flatten()
@@ -141,11 +124,11 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
         }
         
         //  arrange vertically: move nodes down as far as possible
-        for node in multi_dep_nodes_subgraph.node_indices() {
+        for node in g.node_indices() {
             let max_predecessor_level = *std::cmp::max(
-                multi_dep_nodes_subgraph
+                g
                     .neighbors_directed(node, Direction::Incoming)
-                    .filter(|neighbor| multi_dep_neighbours.get(&node)
+                    .filter(|neighbor| neighbours.get(&node)
                             .unwrap()
                             .contains(neighbor))
                     .map(|neighbor| level_of_node.get(&neighbor))
@@ -190,225 +173,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             }
         }
 
-        // swap nodes
-        for level in nodes_in_level.iter_mut() {
-            for node_opt in level.clone().iter().skip(1) {
-                if node_opt.is_none() {
-                    continue;
-                }
-                let node = node_opt.unwrap();
-                let successors: Vec<_> = multi_dep_nodes_subgraph.neighbors_directed(node, Direction::Outgoing).collect();
-                let left_opt = level[index_of_node[&node] - 1];
-                if left_opt.is_none() {
-                    continue;
-                }
-
-                let left = left_opt.unwrap();
-                let left_successor: Vec<_> = multi_dep_nodes_subgraph.neighbors_directed(left, Direction::Outgoing).collect();
-                let mut cross_count = 0;
-                let mut cross_count_swap = 0;
-                for successor in &successors {
-                    cross_count += left_successor
-                                        .iter()
-                                        .filter(|left_successor| index_of_node[left_successor] > index_of_node[successor])
-                                        .count();
-
-                    cross_count_swap += left_successor
-                                        .iter()
-                                        .filter(|left_successor| index_of_node[left_successor] < index_of_node[successor])
-                                        .count();
-                }
-
-                // swap nodes if it results in less crossings
-                if cross_count_swap < cross_count {
-                    let node_index = index_of_node[&node];
-                    let left_index = index_of_node[&left];
-
-                    level[node_index] = Some(left);
-                    level[left_index] = Some(node);
-                    index_of_node.insert(left, node_index);
-                    index_of_node.insert(node, left_index);
-                }
-            }
-        }
-
-        // swap nodes with None neighbours
-        for _ in 0..10 {
-            let mut break_flag = true;
-            for (level_index, level) in nodes_in_level.clone().iter().enumerate() {
-                for _ in 0..(level.len() / 2) {
-                    break_flag = true;
-                    for node_opt in level.iter().take(level.len() - 2).skip(1) {
-                        if node_opt.is_none() {
-                            continue;
-                        }
-                        let node_index = nodes_in_level[level_index].iter().position(|n| n == node_opt).unwrap();
-                        let node = node_opt.unwrap();
-                        let left_opt = level[node_index - 1];
-                        let right_opt = level[node_index + 1];
-
-                        if left_opt.is_some() && right_opt.is_some() {
-                            continue;
-                        }
-
-                        let mut mean_neighbor_index = 0.;
-                        let mut count = 0.;
-                        for neighbor in multi_dep_neighbours.get(&node).unwrap() {
-                            if usize::abs_diff(*level_of_node.get(&node).unwrap(), *level_of_node.get(&neighbor).unwrap()) < 2 {
-                                mean_neighbor_index += nodes_in_level[*level_of_node.get(&neighbor).unwrap()] 
-                                    .iter()
-                                    .position(|node| node == &Some(*neighbor))
-                                    .unwrap() as f64;
-                                count += 1.;
-                            }
-                        }
-                        if count == 0. {
-                            continue;
-                        }
-
-                        mean_neighbor_index /= count;
-                        
-                        // swap nodes for being closer to mean_neighbor_index
-                        if mean_neighbor_index < node_index as f64 - 0.5 && left_opt.is_none(){
-                            break_flag = false;
-                            nodes_in_level[level_index][node_index] = None;
-                            nodes_in_level[level_index][node_index - 1] = *node_opt;
-                            index_of_node.entry(node).and_modify(|i| *i = node_index - 1);
-                        } else if mean_neighbor_index > node_index as f64 + 0.5 && right_opt.is_none() {
-                            break_flag = false;
-                            nodes_in_level[level_index][node_index] = None;
-                            nodes_in_level[level_index][node_index + 1] = *node_opt;
-                            index_of_node.entry(node).and_modify(|i| *i = node_index + 1);
-                        }
-                    }
-                    if break_flag {
-                        break;
-                    }
-                }
-            }
-            if break_flag {
-                break;
-            }
-        }
-
-        print_layout(&nodes_in_level);
-        // sort in single dependency nodes
-        // sort in single dependency predecessors
-        for level in nodes_in_level.clone() {
-            for (node_index, node_opt) in level.iter().enumerate() {
-                if node_opt.is_none() || single_dep_nodes.contains(&node_opt.unwrap()) {
-                    continue;
-                }
-                let node = node_opt.unwrap();
-                for predecessor in g.neighbors_directed(node, Direction::Incoming) {
-                    if !single_dep_nodes.contains(&predecessor) {
-                        continue;
-                    }
-                    let index_level_above = *level_of_node.get(&node).unwrap() - 1;
-                    let level_above = nodes_in_level.get_mut(index_level_above).unwrap();
-                    if level_above.len() > node_index && level_above[node_index].is_none() {
-                        // add node exactly one level above
-                        level_above[node_index] = Some(predecessor);
-                    } else {
-                        // add node one level above and move all other nodes ot the right
-                        level_above.insert(node_index, Some(predecessor));
-                        nodes_in_level.get_mut(index_level_above + 1).unwrap().insert(node_index, None);
-                    }
-                    level_of_node.insert(predecessor, index_level_above);
-                }
-            }
-        }
-
-        // sort in single dependency successors
-        for level in nodes_in_level.clone().into_iter().rev() {
-            for (_, node_opt) in level.iter().enumerate() {
-                if node_opt.is_none() || single_dep_nodes.contains(&node_opt.unwrap()) {
-                    continue;
-                }
-                let node = node_opt.unwrap();
-                for successor in g.neighbors_directed(node, Direction::Outgoing) {
-                    if !single_dep_nodes.contains(&successor) {
-                        continue;
-                    }
-                    let index_level_below = *level_of_node.get(&node).unwrap() + 1;
-                    let node_index = nodes_in_level[index_level_below - 1].iter().position(|n| n == &Some(node)).unwrap();
-                    if index_level_below >= number_of_levels {
-                        nodes_in_level.push(Vec::new());//push(vec![None; level.len()]);
-                        number_of_levels += 1;
-                    }
-                    let level_below = nodes_in_level.get_mut(index_level_below).unwrap();
-                    if level_below.len() > node_index && level_below[node_index].is_none() {
-                        nodes_in_level[index_level_below][node_index] = Some(successor);
-                    } else {
-                        let node_below_index = if level_below.len() < node_index { level_below.len() } else { node_index };
-                        level_below.insert(node_below_index, Some(successor));
-                        nodes_in_level[index_level_below - 1].insert(node_index, None);
-                        // index_of_node.insert(node, node_index + 1); // we moved node one to the right
-                    }
-                    level_of_node.insert(successor, index_level_below);
-                }
-            }
-        }
-
-        // what does this do?
-        for node in single_dep_nodes.iter().rev() {
-            let neighbor = g.neighbors_undirected(*node).collect::<Vec<_>>().pop().unwrap();
-            let node_level_index = *level_of_node.get(node).unwrap();
-            let neighbor_level_index = *level_of_node.get(&neighbor).unwrap();
-            let node_index = nodes_in_level[node_level_index]
-                                        .iter()
-                                        .position(|n| n == &Some(*node))
-                                        .unwrap();
-            let neighbor_index = nodes_in_level[neighbor_level_index]
-                                        .iter()
-                                        .position(|n| n == &Some(neighbor))
-                                        .unwrap();
-            let node_level = nodes_in_level.get_mut(node_level_index).unwrap();
-
-            node_level[node_index] = None;
-            
-            if node_level.len() > neighbor_index && node_level[neighbor_index].is_none() {
-                node_level[neighbor_index] = Some(*node);
-            } else if node_level.len() > neighbor_index - 1 && node_level[neighbor_index - 1].is_none() {
-                node_level[neighbor_index - 1] = Some(*node);
-            } else if node_level.len() > neighbor_index + 1 && node_level[neighbor_index + 1].is_none() {
-                node_level[neighbor_index + 1] = Some(*node);
-            } else {
-                let index = min(node_level.len(), neighbor_index);
-                node_level.insert(index, Some(*node));
-            }
-        }
-
-        // fill in index of node
-        for level in &nodes_in_level {
-            for (index, node) in level.iter().enumerate() {
-                if node.is_some() {
-                    index_of_node.insert(node.unwrap(), index);
-                }
-            }
-        }
-
-        // center levels
-        let max_level_length = nodes_in_level.iter().map(|level| level.len()).max().unwrap();
-        width_list[layout_i] = max_level_length;
-        for level in nodes_in_level.iter_mut() {
-            let level_length = level.len();
-            let mut padding = vec![None; (max_level_length - level_length) / 2 + 1];
-            padding.append(level);
-            padding.append(&mut vec![None; (max_level_length - level_length) / 2]);
-            *level = padding;
-        }
-
-        // why don't we just do this once in the end?
-        for level in &nodes_in_level {
-            for (index, node) in level.iter().enumerate() {
-                if node.is_some() {
-                    index_of_node.insert(node.unwrap(), index);
-                }
-            }
-        }
-
-        // swap if it results in less crossings
+        // print_layout(&nodes_in_level);
 
         let start = Instant::now();
             // let start_crossings = Instant::now();
@@ -460,7 +225,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             // swap with none neighbors
             for _ in 0..2 {
                 let mut did_not_swap = true;
-                print_layout(&nodes_in_level);
+                // print_layout(&nodes_in_level);
                 for (level_index, level) in nodes_in_level.clone().iter().enumerate() {
                     let mut swap_count = 0;
                     let start_none = Instant::now();
@@ -478,7 +243,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
 
                             let mut mean_neighbor_index = 0.;
                             let mut count = 0.;
-                            for neighbor in multi_dep_neighbours.get(&node).unwrap() {
+                            for neighbor in neighbours.get(&node).unwrap() {
                                 if level_index.abs_diff(*level_of_node.get(neighbor).unwrap()) < 2 {
                                     mean_neighbor_index += *index_of_node.get(neighbor).unwrap() as f64;
                                     count += 1.;
@@ -514,7 +279,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
                             break;
                         }
                     }
-                    println!("swap none: {} us\tlvl: {}\t swap_count: {}", start_none.elapsed().as_micros(), level_index, swap_count);
+                    // println!("swap none: {} us\tlvl: {}\t swap_count: {}", start_none.elapsed().as_micros(), level_index, swap_count);
                 }
                 if did_not_swap {
                     break;
