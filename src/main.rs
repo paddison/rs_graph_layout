@@ -13,8 +13,8 @@ use time::Instant;
 
 fn main() {
     // create graph
-    let layout = GraphLayout::new_from_num_nodes(50, 2);
-    let _ = layout.build_edges_and_write_to_file("1000_2");
+    let layout = GraphLayout::new_from_num_nodes(1000, 2);
+    let _ = graph_generator::write_to_file("1000_2", &layout.build_edges());
     let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
     // let g = StableDiGraph::<i32, i32>::from_edges(
     //     &[(1, 2), (0, 1), (0, 6), (6, 7), (1, 7), (7, 8), (7, 9), (7, 10)]
