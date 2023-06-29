@@ -13,9 +13,9 @@ use time::Instant;
 
 fn main() {
     // create graph
-    // let layout = GraphLayout::new_from_num_nodes(1000, 2);
-    let layout = RandomLayout::new(1000);
-    let _ = graph_generator::write_to_file("1000_2", &layout.build_edges());
+    let layout = GraphLayout::new_from_num_nodes(1000, 2);
+    //let layout = RandomLayout::new(1000);
+    // let _ = graph_generator::write_to_file("random_1000", &layout.build_edges());
     let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
     // let g = StableDiGraph::<i32, i32>::from_edges(
     //     &[(1, 2), (0, 1), (0, 6), (6, 7), (1, 7), (7, 8), (7, 9), (7, 10)]
@@ -25,7 +25,7 @@ fn main() {
     let g = StableDiGraph::<i32, i32>::from_edges(&edges);
     let layout: BTreeMap<_, _> = graph_layout(g).unwrap().0[0].clone().into_iter().collect();
     let end = start.elapsed().as_micros();
-    println!("{} us.\n{:?}", end, layout);
+    println!("{} us.\n\nLayout:\n{:?}", end, layout);
 }
 
 fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (isize, isize)>>, Vec<usize>, Vec<usize>)> {
@@ -292,7 +292,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             }
         }
 
-        print_layout(&nodes_in_level);
+        // print_layout(&nodes_in_level);
         // sort in single dependency nodes
         // sort in single dependency predecessors
         for level in nodes_in_level.clone() {
@@ -461,7 +461,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             // swap with none neighbors
             for _ in 0..2 {
                 let mut did_not_swap = true;
-                print_layout(&nodes_in_level);
+                // print_layout(&nodes_in_level);
                 for (level_index, level) in nodes_in_level.clone().iter().enumerate() {
                     let mut swap_count = 0;
                     let start_none = Instant::now();
@@ -515,16 +515,16 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
                             break;
                         }
                     }
-                    println!("swap none: {} us\tlvl: {}\t swap_count: {}", start_none.elapsed().as_micros(), level_index, swap_count);
+                    // println!("swap none: {} us\tlvl: {}\t swap_count: {}", start_none.elapsed().as_micros(), level_index, swap_count);
                 }
                 if did_not_swap {
                     break;
                 }
             }
         }
-        print_layout(&nodes_in_level);
+        // print_layout(&nodes_in_level);
 
-        println!("swap all: {} us", start.elapsed().as_micros());
+        // println!("swap all: {} us", start.elapsed().as_micros());
 
         if global_tasks_in_first_row {
             for node in g.node_identifiers() {
@@ -542,7 +542,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             }
         }
 
-        println!("{}", nodes_in_level.iter().map(|l| l.len()).sum::<usize>());
+        // println!("{}", nodes_in_level.iter().map(|l| l.len()).sum::<usize>());
 
         // build layout
         let offset = if nodes_in_level[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
