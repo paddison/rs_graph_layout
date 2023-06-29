@@ -289,7 +289,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
                 }
             }
         }
-        print_layout(&nodes_in_level);
+        print_layout(&nodes_in_level, PrintStyle::Char('#'));
 
         // println!("swap all: {} us", start.elapsed().as_micros());
 
@@ -330,13 +330,22 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
     return Some((layout_list, width_list, height_list))
 }
 
-fn print_layout(layout: &[Vec<Option<NodeIndex>>]) {
+enum PrintStyle {
+    Node,
+    Char(char),
+}
+
+fn print_layout(layout: &[Vec<Option<NodeIndex>>], style: PrintStyle) {
     for l in layout {
         for n in l {
             if let Some(n) = n {
-                print!("{:>2?}, ", n.index());
+                match &style {
+                    PrintStyle::Node => print!("{:>2?}, ", n.index()),
+                    PrintStyle::Char(c) => print!("{:}", c),
+                }
+
             } else {
-                print!("  , ");
+                print!(" ");
             }
         }
         println!("");
