@@ -13,9 +13,9 @@ use time::Instant;
 
 fn main() {
     // create graph
-    let layout = GraphLayout::new_from_num_nodes(1000, 2);
+    let layout = GraphLayout::new_from_num_nodes(382, 2);
     //let layout = RandomLayout::new(1000);
-    // let _ = graph_generator::write_to_file("random_1000", &layout.build_edges());
+    let _ = graph_generator::write_to_file("random_382", &layout.build_edges());
     let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
     // let g = StableDiGraph::<i32, i32>::from_edges(
     //     &[(1, 2), (0, 1), (0, 6), (6, 7), (1, 7), (7, 8), (7, 9), (7, 10)]
@@ -522,7 +522,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
                 }
             }
         }
-        // print_layout(&nodes_in_level);
+        print_layout(&nodes_in_level, PrintStyle::Char('#'));
 
         // println!("swap all: {} us", start.elapsed().as_micros());
 
@@ -563,13 +563,23 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
     return Some((layout_list, width_list, height_list))
 }
 
-fn print_layout(layout: &[Vec<Option<NodeIndex>>]) {
+enum PrintStyle {
+    Node,
+    Char(char)
+}
+
+
+fn print_layout(layout: &[Vec<Option<NodeIndex>>], style: PrintStyle) {
     for l in layout {
         for n in l {
             if let Some(n) = n {
-                print!("{:>2?}, ", n.index());
+                match &style {
+                    PrintStyle::Node => print!("{:>2?}, ", n.index()),
+                    PrintStyle::Char(c) => print!("{:}", c),
+                }
+
             } else {
-                print!("  , ");
+                print!(" ");
             }
         }
         println!("");
