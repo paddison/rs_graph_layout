@@ -30,6 +30,59 @@ fn main() {
     println!("{} us.\n {:?}", end, layout);
 }
 
+// node index, (x, y)
+type Layout = HashMap<usize, (isize, isize)>;
+
+fn handle_two_or_less_nodes_graph(
+    graph: StableDiGraph<i32, i32>,
+    node_separation: isize,
+    width_list: &mut Vec<usize>,
+    height_list: &mut Vec<usize>,
+    layout_list: &mut Vec<Layout>)
+{
+    let mut layout_tmp = Layout::new();
+    for (node_index, node) in graph.node_indices().enumerate() {
+        let x = node_separation;
+        let y = -(node_index as isize) * node_separation;
+        layout_tmp.insert(node.index(), (x, y));
+    }
+    width_list.push(1);
+    height_list.push(graph.node_count());
+    layout_list.push(layout_tmp);
+}
+
+/// Arrange Nodes in level depending on the direction.
+/// If the direction is Direction::Outgoing, it will try to move the nodes up as far as possible
+/// otherwise it will try to move the nodes as far down as possible
+fn arrange_nodes_in_level(
+    graph: &StableDiGraph<i32, i32>,
+    nodes_in_level: &mut Vec<Vec<Option<NodeIndex>>>,
+    level_of_node: &mut HashMap<NodeIndex, usize>,
+    direction: Direction
+) {
+    for node in graph.node_indices() {
+        let neighbor_levels = graph.neighbors_directed(node, direction).filter_map(|neighbor| level_of_node.get(&neighbor));
+        let new_node_level = match direction {
+            Direction::Incoming => *neighbor_levels.max().unwrap_or(&0) + 1,
+            Direction::Outgoing => *neighbor_levels.min().unwrap_or(&nodes_in_level.len()) - 1
+        };
+
+        // remove the node from the old level, if it was already inserted before
+        if let Some(current_node_level) = level_of_node.get(&node).cloned() {
+            if current_node_level == new_node_level { continue }
+            nodes_in_level[current_node_level].retain(|other_node| &Some(node) != other_node);
+        }
+
+        if let Some(level) = nodes_in_level.get_mut(new_node_level) {
+            level.push(Some(node));
+        } else {
+            nodes_in_level.push(vec![Some(node)])
+        }
+
+        level_of_node.insert(node, new_node_level);
+    }
+}
+
 fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (isize, isize)>>, Vec<usize>, Vec<usize>)> {
     let node_size: isize = 40;
     let node_separation = 4 * node_size;
@@ -40,122 +93,41 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
     }
 
     let graph_list = into_weakly_connected_components(graph);
-    let number_of_independent_graphs = graph_list.len();
 
     let mut layout_list = Vec::<HashMap<usize, (isize, isize)>>::new();
-    let mut height_list = vec![0; number_of_independent_graphs];
-    let mut width_list = vec![0; number_of_independent_graphs];
+    let mut height_list = Vec::new();
+    let mut width_list = Vec::new();
 
-    for (layout_i, g) in graph_list.into_iter().enumerate() {
+    for g in graph_list {
         let mut layout_tmp = HashMap::<usize, (isize, isize)>::new();
 
         // case for one or two nodes
         if g.node_count() <= 2 {
             // NOTE: do these need to be sorted?
-            for (node_i, node) in g.node_indices().enumerate() {
-                let x = node_separation;
-                let y = -(node_i as isize) * node_separation;
-                layout_tmp.insert(node.index(), (x, y));
-            }
-            width_list[layout_i] = 1;
-            height_list[layout_i] = g.node_count();
-            layout_list.push(layout_tmp);
-            continue;
+            handle_two_or_less_nodes_graph(
+                g,
+                node_separation,
+                &mut width_list,
+                &mut height_list,
+                &mut layout_list
+            );
+            continue
         }
 
         let mut level_of_node = HashMap::<NodeIndex, usize>::new();  // level for each node
         let mut index_of_node = HashMap::<NodeIndex, usize>::new();  // index for each node
         let mut nodes_in_level: Vec<Vec<Option<NodeIndex>>> = vec![vec![]];  // nodes in each level
-        let mut number_of_levels = 1;  // total number of levels
-        let mut neighbours = HashMap::new();   // list of neighbours with more than one dependency for each node
-        let mut nodes = Vec::new();  // list of nodes with more than one dependency
 
-        // fill predecessors_of_node, successors_of_node etc.
-        for node in g.node_indices() {
-            neighbours.insert(node, Vec::new());
-            for neighbor in g.neighbors_undirected(node) {
-                let entry = neighbours.entry(node).or_insert(Vec::new());
-                entry.push(neighbor);
-            }
+        // arrange nodes in levels,
+        // TODO: Since graph is already topologically sorted when creating the sub-graphs, it should be not necessary to do so again
+        arrange_nodes_in_level(&g, &mut nodes_in_level, &mut level_of_node, Direction::Incoming);
 
-            nodes.push(node);
-        }
+        // arrange vertically: moves nodes up as far as possible, by looking at successors
+        arrange_nodes_in_level(&g, &mut nodes_in_level, &mut level_of_node, Direction::Outgoing);
 
+        //  arrange vertically: move nodes down as far as possible, by looking at predecessors
+        arrange_nodes_in_level(&g, &mut nodes_in_level, &mut level_of_node, Direction::Incoming);
 
-        // arrange all nodes of in levels,
-        for node in toposort(&g, None).unwrap() {
-            // find maximum level of predecessors
-            let mut max_predecessor_level: usize = 0;
-            for predecessor in g.neighbors_directed(node, Direction::Incoming) {
-                max_predecessor_level = std::cmp::max(
-                    max_predecessor_level,
-                    *level_of_node.get(&predecessor).unwrap_or(&0)
-                );
-            }
-            // put node one level below
-            let node_level = max_predecessor_level + 1;
-            // node_level is 0 based index
-            if node_level >= number_of_levels {
-                number_of_levels += 1;
-                nodes_in_level.push(Vec::new());
-            }
-            nodes_in_level.get_mut(node_level).unwrap().push(Some(node));
-            level_of_node.insert(node, node_level);
-        }
-
-        // arrange vertically: moves nodes up as far as possible
-        for node in g.node_indices() {
-            // find minimum level of successors
-            let min_successor_level = *std::cmp::min(
-                g
-                    .neighbors_directed(node, Direction::Outgoing)
-                    .map(|node| level_of_node.get(&node))
-                    .flatten()
-                    .min()
-                    .unwrap_or(&usize::MAX),
-                &number_of_levels);
-
-            if level_of_node[&node] == min_successor_level - 1 {
-                continue;
-            }
-
-            // put node one level above successor
-            let node_level = min_successor_level - 1;
-            nodes_in_level[*level_of_node.get(&node).unwrap()].retain(|other_node| &Some(node) != other_node); // remove the node
-            nodes_in_level[node_level].push(Some(node));
-            level_of_node.entry(node).and_modify(|entry| *entry = node_level);
-        }
-        
-        //  arrange vertically: move nodes down as far as possible
-        for node in g.node_indices() {
-            let max_predecessor_level = *std::cmp::max(
-                g
-                    .neighbors_directed(node, Direction::Incoming)
-                    .filter(|neighbor| neighbours.get(&node)
-                            .unwrap()
-                            .contains(neighbor))
-                    .map(|neighbor| level_of_node.get(&neighbor))
-                    .flatten()
-                    .max(),
-                Some(&0))
-                .unwrap();
-
-            if level_of_node[&node] == max_predecessor_level + 1 {
-                continue;
-            }
-
-            // put node one level below
-            let node_level = max_predecessor_level + 1;
-            if node_level >= number_of_levels {
-                number_of_levels += 1;
-                nodes_in_level.push(Vec::new());
-            }
-            // remove the node
-            nodes_in_level[*level_of_node.get(&node).unwrap()].retain(|other_node| &Some(node) != other_node);
-            nodes_in_level[node_level].push(Some(node));
-            level_of_node.entry(node).and_modify(|entry| *entry = node_level);
-        }
-        
         // center levels
         let max_level_length = nodes_in_level.iter().map(|level| level.len()).max().unwrap();
         for level in nodes_in_level.iter_mut() {
@@ -223,15 +195,12 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
                     }
                 }
             }
-            // println!("swap crossings: {}", start_crossings.elapsed().as_micros());
 
             // swap with none neighbors
             for _ in 0..2 {
                 let mut did_not_swap = true;
-                // print_layout(&nodes_in_level);
                 for (level_index, level) in nodes_in_level.clone().iter().enumerate() {
                     let mut swap_count = 0;
-                    let start_none = Instant::now();
                     for _ in 0..level.len() / 2 {
                         did_not_swap = true;
                         for node_opt in level.iter() {
@@ -246,9 +215,9 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
 
                             let mut mean_neighbor_index = 0.;
                             let mut count = 0.;
-                            for neighbor in neighbours.get(&node).unwrap() {
-                                if level_index.abs_diff(*level_of_node.get(neighbor).unwrap()) < 2 {
-                                    mean_neighbor_index += *index_of_node.get(neighbor).unwrap() as f64;
+                            for neighbor in g.neighbors_undirected(node) {
+                                if level_index.abs_diff(*level_of_node.get(&neighbor).unwrap()) < 2 {
+                                    mean_neighbor_index += *index_of_node.get(&neighbor).unwrap() as f64;
                                     count += 1.;
                                 }
                             }
@@ -282,7 +251,6 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
                             break;
                         }
                     }
-                    // println!("swap none: {} us\tlvl: {}\t swap_count: {}", start_none.elapsed().as_micros(), level_index, swap_count);
                 }
                 if did_not_swap {
                     break;
@@ -322,7 +290,7 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             }
         }
 
-        height_list[layout_i] = number_of_levels;
+        height_list.push(nodes_in_level.len());
         layout_list.push(layout_tmp);
     }
 
