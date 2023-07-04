@@ -1,12 +1,11 @@
-use std::cmp::min;
+
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::time;
-use petgraph::{Directed, Direction, Graph};
-use petgraph::algo::{connected_components, tarjan_scc, toposort};
-use petgraph::stable_graph::{StableDiGraph, StableGraph};
+use petgraph::Direction;
+use petgraph::algo::{toposort};
+use petgraph::stable_graph::{StableDiGraph};
 use petgraph::graph::{DefaultIx, DiGraph, NodeIndex};
-use petgraph::unionfind::UnionFind;
-use petgraph::visit::{IntoEdgeReferences, IntoNeighborsDirected, IntoNodeIdentifiers, NodeCompactIndexable};
+use petgraph::visit::{IntoNodeIdentifiers};
 
 use graph_generator::{GraphLayout, RandomLayout};
 use time::Instant;
@@ -15,16 +14,16 @@ static LAYOUT_1000: [(u32, u32); 1000] = [(0, 1), (1, 396), (396, 344), (1, 127)
 
 fn main() {
     // create graph
-    let layout = GraphLayout::new_from_num_nodes(382, 2);
+    // let layout = GraphLayout::new_from_num_nodes(500, 2);
     // let layout = RandomLayout::new(1000);
-    let _ = graph_generator::write_to_file("382_2", &layout.build_edges());
-    let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
+    // let _ = graph_generator::write_to_file("382_2", &layout.build_edges());
+    // let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
     // let g = StableDiGraph::<i32, i32>::from_edges(
     //     &[(1, 2), (0, 1), (0, 6), (6, 7), (1, 7), (7, 8), (7, 9), (7, 10)]
     // );
     println!("start");
     let start = Instant::now();
-    let g = StableDiGraph::<i32, i32>::from_edges(&edges);
+    let g = StableDiGraph::<i32, i32>::from_edges(&LAYOUT_1000);
     let layout: BTreeMap<_, _> = graph_layout(g).unwrap().0[0].clone().into_iter().collect();
     let end = start.elapsed().as_micros();
     println!("{} us.\n {:?}", end, layout);
@@ -64,7 +63,7 @@ fn arrange_nodes_in_level(
         let neighbor_levels = graph.neighbors_directed(node, direction).filter_map(|neighbor| level_of_node.get(&neighbor));
         let new_node_level = match direction {
             Direction::Incoming => *neighbor_levels.max().unwrap_or(&0) + 1,
-            Direction::Outgoing => *neighbor_levels.min().unwrap_or(&nodes_in_level.len()) - 1
+            Direction::Outgoing => neighbor_levels.min().unwrap_or(&nodes_in_level.len()).checked_sub(1).unwrap_or(0)
         };
 
         // remove the node from the old level, if it was already inserted before
@@ -143,12 +142,10 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
             for (index, node_opt) in level.iter().enumerate() {
                 if let Some(node) = node_opt {
                     index_of_node.insert(*node, index);
-                    // index_of_node.entry(*node).and_modify(|e| *e = index);
                 }
             }
         }
 
-        // print_layout(&nodes_in_level);
 
         let start = Instant::now();
             // let start_crossings = Instant::now();
