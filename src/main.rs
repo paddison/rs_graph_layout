@@ -5,7 +5,7 @@ use petgraph::Direction;
 use petgraph::algo::{toposort};
 use petgraph::stable_graph::{StableDiGraph};
 use petgraph::graph::{DefaultIx, DiGraph, NodeIndex};
-use petgraph::visit::{IntoNodeIdentifiers};
+use petgraph::visit::{IntoNeighborsDirected, IntoNodeIdentifiers};
 
 use graph_generator::{GraphLayout, RandomLayout};
 use time::Instant;
@@ -14,16 +14,16 @@ static LAYOUT_1000: [(u32, u32); 1000] = [(0, 1), (1, 396), (396, 344), (1, 127)
 
 fn main() {
     // create graph
-    // let layout = GraphLayout::new_from_num_nodes(500, 2);
+    let layout = GraphLayout::new_from_num_nodes(22, 2);
     // let layout = RandomLayout::new(1000);
-    // let _ = graph_generator::write_to_file("382_2", &layout.build_edges());
-    // let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
+    let _ = graph_generator::write_to_file("22_2", &layout.build_edges());
+    let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
     // let g = StableDiGraph::<i32, i32>::from_edges(
     //     &[(1, 2), (0, 1), (0, 6), (6, 7), (1, 7), (7, 8), (7, 9), (7, 10)]
     // );
     println!("start");
     let start = Instant::now();
-    let g = StableDiGraph::<i32, i32>::from_edges(&LAYOUT_1000);
+    let g = StableDiGraph::<i32, i32>::from_edges(&edges);
     let layout: BTreeMap<_, _> = graph_layout(g).unwrap().0[0].clone().into_iter().collect();
     let end = start.elapsed().as_micros();
     println!("{} us.\n {:?}", end, layout);
@@ -31,6 +31,35 @@ fn main() {
 
 // node index, (x, y)
 type Layout = HashMap<usize, (isize, isize)>;
+
+fn into_weakly_connected_components(graph: StableDiGraph<i32, i32>) -> Vec<StableDiGraph<i32, i32>> {
+    let mut visited = HashSet::<NodeIndex>::new();
+    let sorted_identifiers = toposort(&graph, None).unwrap();
+    let mut sub_graphs = Vec::new();
+
+    // build each subgraph
+    for identifier in sorted_identifiers {
+        let mut subgraph_edges = vec![];
+        let mut sources = vec![identifier];
+
+        // since graph is sorted, we only need to look for successors
+        while let Some(source) = sources.pop() {
+            if !visited.insert(source) {
+                continue;
+            }
+            let successors = graph.neighbors_directed(source, Direction::Outgoing);
+            for successor in successors {
+                subgraph_edges.push((source.index() as DefaultIx, successor.index() as DefaultIx)); // NOTE: will this work, if nodes contain actual data?
+                sources.push(successor);
+            }
+        }
+        if subgraph_edges.len() > 0 {
+            sub_graphs.push(StableDiGraph::from_edges(subgraph_edges));
+        }
+    }
+
+    return sub_graphs
+}
 
 fn handle_two_or_less_nodes_graph(
     graph: StableDiGraph<i32, i32>,
@@ -50,10 +79,28 @@ fn handle_two_or_less_nodes_graph(
     layout_list.push(layout_tmp);
 }
 
+fn create_nodes_in_level(graph: &StableDiGraph<i32, i32>, level_of_node: &mut HashMap<NodeIndex, usize>) -> Vec<Vec<Option<NodeIndex>>> {
+    let mut nodes_in_level: Vec<Vec<Option<NodeIndex>>> = Vec::new();
+    for node in toposort(graph, None).unwrap() {
+        let node_level = graph.neighbors_directed(node, Direction::Incoming)
+            .filter_map(|predecessor| level_of_node.get(&predecessor))
+            .max()
+            .unwrap_or(&0)
+            + 1;
+
+        level_of_node.insert(node, node_level);
+        add_node_to_level(node, node_level, &mut nodes_in_level);
+    }
+
+    nodes_in_level
+}
+
 /// Arrange Nodes in level depending on the direction.
 /// If the direction is Direction::Outgoing, it will try to move the nodes up as far as possible
 /// otherwise it will try to move the nodes as far down as possible
-fn arrange_nodes_in_level(
+// TODO: In the original version, when direction is outgoing, the nodes should be iterated over in reverse order
+// TODO: This doesn't seem to make a difference in the end result though
+fn move_nodes_in_level(
     graph: &StableDiGraph<i32, i32>,
     nodes_in_level: &mut Vec<Vec<Option<NodeIndex>>>,
     level_of_node: &mut HashMap<NodeIndex, usize>,
@@ -66,23 +113,28 @@ fn arrange_nodes_in_level(
             Direction::Outgoing => neighbor_levels.min().unwrap_or(&nodes_in_level.len()).checked_sub(1).unwrap_or(0)
         };
 
+        let current_node_level = *level_of_node.get(&node).unwrap();
+        if current_node_level == new_node_level { continue }
+
         // remove the node from the old level, if it was already inserted before
-        if let Some(current_node_level) = level_of_node.get(&node).cloned() {
-            if current_node_level == new_node_level { continue }
-            nodes_in_level[current_node_level].retain(|other_node| &Some(node) != other_node);
-        }
-
-        if let Some(level) = nodes_in_level.get_mut(new_node_level) {
-            level.push(Some(node));
-        } else {
-            nodes_in_level.push(vec![Some(node)])
-        }
-
+        nodes_in_level[current_node_level].retain(|other_node| &Some(node) != other_node);
+        add_node_to_level(node, new_node_level, nodes_in_level);
         level_of_node.insert(node, new_node_level);
     }
 }
 
-fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (isize, isize)>>, Vec<usize>, Vec<usize>)> {
+fn add_node_to_level(node: NodeIndex, node_level: usize, nodes_in_level: &mut Vec<Vec<Option<NodeIndex>>>) {
+    if let Some(level) = nodes_in_level.get_mut(node_level) {
+        level.push(Some(node));
+    } else {
+        while nodes_in_level.len() <= node_level {
+            nodes_in_level.push(vec![]);
+        }
+        nodes_in_level[node_level].push(Some(node));
+    }
+}
+
+fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<Layout>, Vec<usize>, Vec<usize>)> {
     let node_size: isize = 40;
     let node_separation = 4 * node_size;
     let global_tasks_in_first_row = false;
@@ -93,16 +145,15 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
 
     let graph_list = into_weakly_connected_components(graph);
 
-    let mut layout_list = Vec::<HashMap<usize, (isize, isize)>>::new();
+    let mut layout_list = Vec::<Layout>::new();
     let mut height_list = Vec::new();
     let mut width_list = Vec::new();
 
     for g in graph_list {
-        let mut layout_tmp = HashMap::<usize, (isize, isize)>::new();
+        let mut layout_tmp = Layout::new();
 
         // case for one or two nodes
         if g.node_count() <= 2 {
-            // NOTE: do these need to be sorted?
             handle_two_or_less_nodes_graph(
                 g,
                 node_separation,
@@ -115,17 +166,24 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
 
         let mut level_of_node = HashMap::<NodeIndex, usize>::new();  // level for each node
         let mut index_of_node = HashMap::<NodeIndex, usize>::new();  // index for each node
-        let mut nodes_in_level: Vec<Vec<Option<NodeIndex>>> = vec![vec![]];  // nodes in each level
-
         // arrange nodes in levels,
-        // TODO: Since graph is already topologically sorted when creating the sub-graphs, it should be not necessary to do so again
-        arrange_nodes_in_level(&g, &mut nodes_in_level, &mut level_of_node, Direction::Incoming);
+        let mut nodes_in_level = create_nodes_in_level(&g, &mut level_of_node);
 
         // arrange vertically: moves nodes up as far as possible, by looking at successors
-        arrange_nodes_in_level(&g, &mut nodes_in_level, &mut level_of_node, Direction::Outgoing);
+        move_nodes_in_level(
+            &g,
+            &mut nodes_in_level,
+            &mut level_of_node,
+            Direction::Outgoing
+        );
 
         //  arrange vertically: move nodes down as far as possible, by looking at predecessors
-        arrange_nodes_in_level(&g, &mut nodes_in_level, &mut level_of_node, Direction::Incoming);
+        move_nodes_in_level(
+            &g,
+            &mut nodes_in_level,
+            &mut level_of_node,
+            Direction::Incoming
+        );
 
         // center levels
         let max_level_length = nodes_in_level.iter().map(|level| level.len()).max().unwrap();
@@ -147,8 +205,6 @@ fn graph_layout(graph: StableDiGraph<i32, i32>) -> Option<(Vec<HashMap<usize, (i
         }
 
 
-        let start = Instant::now();
-            // let start_crossings = Instant::now();
         for _ in 0..10 {
             for _ in 0..2 {
                 for (level_index, level) in nodes_in_level.clone().into_iter().enumerate() {
@@ -317,34 +373,6 @@ fn print_layout(layout: &[Vec<Option<NodeIndex>>], style: PrintStyle) {
     }
 }
 
-fn into_weakly_connected_components(graph: StableDiGraph<i32, i32>) -> Vec<StableDiGraph<i32, i32>> {
-    let mut visited = HashSet::<NodeIndex>::new();
-    let sorted_identifiers = toposort(&graph, None).unwrap();
-    let mut sub_graphs = Vec::new();
-
-    // build each subgraph
-    for identifier in sorted_identifiers {
-        let mut subgraph_edges = vec![];
-        let mut sources = vec![identifier];
-
-        // since graph is sorted, we only need to look for successors
-        while let Some(source) = sources.pop() {
-            if !visited.insert(source) {
-                continue;
-            }
-            let successors = graph.neighbors_directed(source, Direction::Outgoing);
-            for successor in successors {
-                subgraph_edges.push((source.index() as DefaultIx, successor.index() as DefaultIx)); // NOTE: will this work, if nodes contain actual data?
-                sources.push(successor);
-            }
-        }
-        if subgraph_edges.len() > 0 {
-            sub_graphs.push(StableDiGraph::from_edges(subgraph_edges));
-        }
-    }
-
-    return sub_graphs
-}
 
 // chatgpt generated code
 use petgraph::visit::Bfs;
