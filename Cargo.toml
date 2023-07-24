@@ -1,10 +1,16 @@
 [package]
-name = "temanejo_graph"
+name = "rs_graph_layout"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "rs_graph_layout"
+crate-type = ["cdylib"]
 
 [dependencies]
 petgraph = "0.6.3"
-graph_generator = { path = "../graph_generator"}
+graph_generator = { git = "https://github.com/paddison/graph_generator" }
+pyo3 = { version = "0.19.1", features = ["extension-module"] }
+
+[build-dependencies]
+pyo3-build-config = "0.19.1"
