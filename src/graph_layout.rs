@@ -40,7 +40,10 @@ impl<T: Default> GraphLayout<T> {
     /// A layout contains the position of each node (HashMap of NodeIndex and (x, y)) the height of the layout and the maximum width of the layers.
     /// The layout is created by arranging the nodes of the graph in level and performing some operations them in order to produce a visualization
     /// of the graph.
-    pub(crate) fn create_layers(edges: &[(u32, u32)], node_size: isize, global_tasks_in_first_row: bool) -> Vec<(NodePositions, usize, usize)> {
+    pub(crate) fn create_layers(edges: &[(u32, u32)], node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
+        let mut layout_list = Vec::new();
+        let mut width_list = Vec::new();
+        let mut height_list = Vec::new();
         let graph = StableDiGraph::<T, i32>::from_edges(edges);
         let mut graphs = Self::into_weakly_connected_components(graph)
             .into_iter()
@@ -51,22 +54,28 @@ impl<T: Default> GraphLayout<T> {
             graph.align_nodes();
         }
 
-        graphs.into_iter().map(|layout| layout.build_layout()).collect()
+        for (node_positions, width, height) in graphs.into_iter().map(|graph| graph.build_layout()) {
+            layout_list.push(node_positions);
+            width_list.push(width);
+            height_list.push(height);
+        }
+
+        (layout_list, height_list, width_list)
     }
 
     fn build_layout(&self) -> (NodePositions, usize, usize){
-        let mut layout = HashMap::new();
-
+        let mut node_positions = HashMap::new();
         let offset = if self.layers.borrow()[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
+
         for (level_index, level) in self.layers.borrow().iter().enumerate() {
             for (node_index, node_opt) in level.iter().enumerate() {
                 let node = if let Some(node) = node_opt { *node } else { continue; };
                 let x = node_index as isize * self.node_separation;
                 let y = (-(level_index as isize) + offset) * self.node_separation;
-                layout.insert(node.index(), (x, y));
+                node_positions.insert(node.index(), (x, y));
             }
         }
-        (layout, self.get_width(), self.get_nums_of_level())
+        (node_positions, self.get_width(), self.get_nums_of_level())
     } 
 
     /// Takes a graph and breaks it down into its weakly connected components.
