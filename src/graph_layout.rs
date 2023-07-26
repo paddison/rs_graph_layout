@@ -40,18 +40,34 @@ impl<T: Default> GraphLayout<T> {
     /// A layout contains the position of each node (HashMap of NodeIndex and (x, y)) the height of the layout and the maximum width of the layers.
     /// The layout is created by arranging the nodes of the graph in level and performing some operations them in order to produce a visualization
     /// of the graph.
-    pub(crate) fn create_layouts(edges: &[(u32, u32)], node_size: isize, global_tasks_in_first_row: bool) -> Vec<(NodePositions, usize, usize)> {
+    pub(crate) fn create_layers(edges: &[(u32, u32)], node_size: isize, global_tasks_in_first_row: bool) -> Vec<(NodePositions, usize, usize)> {
         let graph = StableDiGraph::<T, i32>::from_edges(edges);
-        let mut layouts = Self::into_weakly_connected_components(graph)
+        let mut graphs = Self::into_weakly_connected_components(graph)
             .into_iter()
             .map(|subgraph| Self::new(subgraph, node_size, global_tasks_in_first_row))
             .collect::<Vec<_>>();
 
-        for layout in layouts.iter_mut() {
-            layout.align_nodes();
+        for graph in graphs.iter_mut() {
+            graph.align_nodes();
         }
-        layouts.into_iter().map(|layout| layout.build_layout()).collect()
+
+        graphs.into_iter().map(|layout| layout.build_layout()).collect()
     }
+
+    fn build_layout(&self) -> (NodePositions, usize, usize){
+        let mut layout = HashMap::new();
+
+        let offset = if self.layers.borrow()[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
+        for (level_index, level) in self.layers.borrow().iter().enumerate() {
+            for (node_index, node_opt) in level.iter().enumerate() {
+                let node = if let Some(node) = node_opt { *node } else { continue; };
+                let x = node_index as isize * self.node_separation;
+                let y = (-(level_index as isize) + offset) * self.node_separation;
+                layout.insert(node.index(), (x, y));
+            }
+        }
+        (layout, self.get_width(), self.get_nums_of_level())
+    } 
 
     /// Takes a graph and breaks it down into its weakly connected components.
     /// A weakly connected component is a list of edges which are connected with each other.
@@ -353,21 +369,6 @@ impl<T: Default> GraphLayout<T> {
         false
     }
 
-    fn build_layout(&self) -> (NodePositions, usize, usize){
-        let mut layout = HashMap::new();
-
-        let offset = if self.layers.borrow()[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
-        for (level_index, level) in self.layers.borrow().iter().enumerate() {
-            for (node_index, node_opt) in level.iter().enumerate() {
-                let node = if let Some(node) = node_opt { *node } else { continue; };
-                let x = node_index as isize * self.node_separation;
-                let y = (-(level_index as isize) + offset) * self.node_separation;
-                layout.insert(node.index(), (x, y));
-            }
-        }
-        (layout, self.get_width(), self.get_nums_of_level())
-    } 
-
     /// Prints the graph to the console.
     /// 
     /// Parameters: 
@@ -414,7 +415,7 @@ mod tests {
         let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
         println!("start");
         let start = Instant::now();
-        let layouts = GraphLayout::<u32>::create_layouts(&edges, 40, false);
+        let layouts = GraphLayout::<u32>::create_layers(&edges, 40, false);
         let end = start.elapsed().as_micros();
         println!("{} us.", end);
         println!("{:?}", layouts);

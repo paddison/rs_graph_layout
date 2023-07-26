@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 /// This is the version where the data of the nodes will be a i32 integer.
 #[pyfunction]
 pub fn create_layouts_i32(edges: Vec<(u32, u32)>, node_size: isize, global_tasks_in_first_row: bool) -> Vec<(NodePositions, usize, usize)> {
-    GraphLayout::<i32>::create_layouts(&edges, node_size, global_tasks_in_first_row)
+    GraphLayout::<i32>::create_layers(&edges, node_size, global_tasks_in_first_row)
 }
 
 #[pymodule]
