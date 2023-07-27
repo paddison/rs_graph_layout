@@ -6,7 +6,7 @@ use std::{
 use petgraph::{
     stable_graph::{StableDiGraph, NodeIndex, DefaultIx}, 
     algo::toposort, 
-    Direction, visit::IntoNodeIdentifiers
+    Direction, visit::{IntoNodeIdentifiers, IntoNeighbors}, data::Build
 };
 
 
@@ -51,7 +51,9 @@ impl<T: Default> GraphLayout<T> {
             .collect::<Vec<_>>();
 
         for graph in graphs.iter_mut() {
-            graph.align_nodes();
+            if graph.graph.edge_count() != 0 {
+                graph.align_nodes();
+            } 
         }
 
         for (node_positions, width, height) in graphs.into_iter().map(|graph| graph.build_layout()) {
@@ -63,7 +65,15 @@ impl<T: Default> GraphLayout<T> {
         (layout_list, height_list, width_list)
     }
 
+    fn build_layout_no_edges(&self) -> (NodePositions, usize, usize) {
+        let node = self.graph.node_indices().next().unwrap();
+        (HashMap::from([(node.index(), (self.node_separation, 0))]), 1, 1)
+    }
+
     fn build_layout(&self) -> (NodePositions, usize, usize){
+        if self.graph.edge_count() == 0 {
+            return self.build_layout_no_edges();
+        }
         let mut node_positions = HashMap::new();
         let offset = if self.layers.borrow()[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
 
@@ -89,9 +99,20 @@ impl<T: Default> GraphLayout<T> {
         for identifier in sorted_identifiers {
             let mut subgraph_edges = vec![];
             let mut sources = vec![identifier];
+            let mut single_node_graph = None;
 
+            if graph.neighbors_undirected(identifier).next() == None {
+                single_node_graph = Some(identifier)
+            }
+            if let Some(_) = single_node_graph {
+                let mut g = StableDiGraph::new();
+                g.add_node(T::default());
+                sub_graphs.push(g);
+                continue;
+            }
             // since graph is sorted, we only need to look for successors
             while let Some(source) = sources.pop() {
+                
                 if !visited.insert(source) {
                     continue;
                 }
@@ -428,5 +449,22 @@ mod tests {
         let end = start.elapsed().as_micros();
         println!("{} us.", end);
         println!("{:?}", layouts);
+    }
+
+    #[test]
+    fn test_add_node() {
+        let mut g = petgraph::stable_graph::StableDiGraph::<(), i32>::new();
+        g.add_node(());
+        g.add_node(());
+        let g = petgraph::stable_graph::StableDiGraph::<(), i32>::from_edges(&[(1, 2), (3, 4)]);
+        println!("{:?}", g.node_indices().map(|n| n.index()).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_into_weakly_connected_components() {
+        let mut g = petgraph::stable_graph::StableDiGraph::<(), i32>::new();
+        g.add_node(());
+        g.add_node(());
+        println!("{:?}", GraphLayout::into_weakly_connected_components(g));
     }
 }
