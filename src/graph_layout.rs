@@ -44,7 +44,13 @@ impl<T: Default> GraphLayout<T> {
         let mut layout_list = Vec::new();
         let mut width_list = Vec::new();
         let mut height_list = Vec::new();
-        let graph = StableDiGraph::<T, i32>::from_edges(edges);
+        let mut graph = StableDiGraph::<T, i32>::new();
+        for _ in nodes {
+            graph.add_node(T::default());
+        }
+        for (predecessor, successor) in edges {
+            graph.add_edge(NodeIndex::from(*predecessor), NodeIndex::from(*successor), 0);
+        }
         let mut graphs = Self::into_weakly_connected_components(graph)
             .into_iter()
             .map(|subgraph| Self::new(subgraph, node_size, global_tasks_in_first_row))
