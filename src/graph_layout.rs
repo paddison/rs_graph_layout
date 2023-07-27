@@ -168,17 +168,25 @@ impl<T: Default> GraphLayout<T> {
     }
 
     fn get_nums_of_level(&self) -> usize {
-        self.layers.borrow().len()
+        let mut num_levels = 0;
+        for layer in self.layers.borrow().iter() {
+            if layer.iter().any(|n| n.is_some()) {
+                num_levels += 1;
+            }
+        }
+        num_levels
     }
 
     fn get_width(&self) -> usize {
-        self.layers.borrow()
+        let widths = self.layers.borrow()
             .iter()
             .map(|level| level.iter()
                               .map(|n| if n.is_some() { 1 } else { 0 })
-                              .sum())
-            .max()
-            .unwrap_or(0)
+                              .sum::<usize>()).collect::<Vec<_>>();
+
+        println!("{:?}", widths);
+
+        *widths.iter().max().unwrap_or(&0)
     }
 
     /// Align the nodes contained in the graph in layers.
