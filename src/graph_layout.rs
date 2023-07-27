@@ -40,7 +40,7 @@ impl<T: Default> GraphLayout<T> {
     /// A layout contains the position of each node (HashMap of NodeIndex and (x, y)) the height of the layout and the maximum width of the layers.
     /// The layout is created by arranging the nodes of the graph in level and performing some operations them in order to produce a visualization
     /// of the graph.
-    pub(crate) fn create_layers(edges: &[(u32, u32)], node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
+    pub(crate) fn create_layers(nodes: &[u32], edges: &[(u32, u32)], node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
         let mut layout_list = Vec::new();
         let mut width_list = Vec::new();
         let mut height_list = Vec::new();
@@ -424,7 +424,7 @@ mod tests {
         let edges = layout.build_edges().into_iter().map(|(n, s): (usize, usize)| (n as u32, s as u32)).collect::<Vec<(u32, u32)>>();
         println!("start");
         let start = Instant::now();
-        let layouts = GraphLayout::<u32>::create_layers(&edges, 40, false);
+        let layouts = GraphLayout::<u32>::create_layers(&[1], &edges, 40, false);
         let end = start.elapsed().as_micros();
         println!("{} us.", end);
         println!("{:?}", layouts);

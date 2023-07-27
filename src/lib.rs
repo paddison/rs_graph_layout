@@ -10,8 +10,9 @@ use pyo3::prelude::*;
 /// of the graph.
 /// This is the version where the data of the nodes will be a i32 integer.
 #[pyfunction]
-pub fn create_layouts_i32(edges: Vec<(u32, u32)>, node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
-    GraphLayout::<i32>::create_layers(&edges, node_size, global_tasks_in_first_row)
+pub fn create_layouts_i32(nodes: Vec<u32>, edges: Vec<(u32, u32)>, node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
+    println!("nodes: {:?}\nedges: {:?}\n {}", nodes, edges, global_tasks_in_first_row);
+    GraphLayout::<i32>::create_layers(&nodes, &edges, node_size, global_tasks_in_first_row)
 }
 
 #[pymodule]
