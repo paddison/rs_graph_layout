@@ -49,7 +49,8 @@ impl<T: Default> GraphLayout<T> {
             graph.add_node(T::default());
         }
         for (predecessor, successor) in edges {
-            graph.add_edge(NodeIndex::from(*predecessor), NodeIndex::from(*successor), 0);
+            // networkx graph is 1 indexed
+            graph.add_edge(NodeIndex::from(*predecessor - 1), NodeIndex::from(*successor - 1), 0);
         }
         let mut graphs = Self::into_weakly_connected_components(graph)
             .into_iter()
