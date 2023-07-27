@@ -74,7 +74,8 @@ impl<T: Default> GraphLayout<T> {
 
     fn build_layout_no_edges(&self) -> (NodePositions, usize, usize) {
         let node = self.graph.node_indices().next().unwrap();
-        (HashMap::from([(node.index(), (self.node_separation, 0))]), 1, 1)
+        // increment node index by one for networkx
+        (HashMap::from([(node.index() + 1, (self.node_separation, 0))]), 1, 1)
     }
 
     fn build_layout(&self) -> (NodePositions, usize, usize){
@@ -84,12 +85,13 @@ impl<T: Default> GraphLayout<T> {
         let mut node_positions = HashMap::new();
         let offset = if self.layers.borrow()[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
 
+        println!("{:?}", self.layers.borrow());
         for (level_index, level) in self.layers.borrow().iter().enumerate() {
             for (node_index, node_opt) in level.iter().enumerate() {
                 let node = if let Some(node) = node_opt { *node } else { continue; };
                 let x = node_index as isize * self.node_separation;
                 let y = (-(level_index as isize) + offset) * self.node_separation;
-                node_positions.insert(node.index(), (x, y));
+                node_positions.insert(node.index() + 1, (x, y)); // increment index by one for networkx
             }
         }
         (node_positions, self.get_width(), self.get_nums_of_level())
