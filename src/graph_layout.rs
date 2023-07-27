@@ -85,7 +85,6 @@ impl<T: Default> GraphLayout<T> {
         let mut node_positions = HashMap::new();
         let offset = if self.layers.borrow()[0].iter().all(|n| n.is_none()) { 1 } else { 0 };
 
-        println!("{:?}", self.layers.borrow());
         for (level_index, level) in self.layers.borrow().iter().enumerate() {
             for (node_index, node_opt) in level.iter().enumerate() {
                 let node = if let Some(node) = node_opt { *node } else { continue; };
@@ -193,15 +192,13 @@ impl<T: Default> GraphLayout<T> {
     }
 
     fn get_width(&self) -> usize {
-        let widths = self.layers.borrow()
+        self.layers.borrow()
             .iter()
             .map(|level| level.iter()
                               .map(|n| if n.is_some() { 1 } else { 0 })
-                              .sum::<usize>()).collect::<Vec<_>>();
-
-        println!("{:?}", widths);
-
-        *widths.iter().max().unwrap_or(&0)
+                              .sum::<usize>())
+            .max()
+            .unwrap_or(0)
     }
 
     /// Align the nodes contained in the graph in layers.
@@ -219,18 +216,15 @@ impl<T: Default> GraphLayout<T> {
         // arrange nodes in levels,
         self.arrange_nodes_in_levels();
 
-        println!("{:?}", self.layers.borrow());
         // arrange vertically: moves nodes up as far as possible, by looking at successors
         for node in self.graph.node_identifiers().rev() {
             self.move_node_in_level(node, Direction::Outgoing)
         }
-        println!("{:?}", self.layers.borrow());
         //  arrange vertically: move nodes down as far as possible, by looking at predecessors
         for node in self.graph.node_identifiers() {
             self.move_node_in_level(node, Direction::Incoming)
         }
 
-        println!("{:?}", self.layers.borrow());
 
         // center levels
         let max_level_length = self.layers.borrow().iter().map(|level| level.len()).max().unwrap();
@@ -315,7 +309,6 @@ impl<T: Default> GraphLayout<T> {
                 .filter_map(|predecessor| self.get_level_of_node(&predecessor).and_then(|level| Some(level + 1)))
                 .max()
                 .unwrap_or(0);
-            println!("n: {}; l: {}", node.index(), node_level);
             self.insert_level_of_node(node, node_level);
             self.add_node_to_level(node, node_level);
         }
@@ -498,7 +491,7 @@ mod tests {
         let mut g = petgraph::stable_graph::StableDiGraph::<(), i32>::new();
         g.add_node(());
         g.add_node(());
-        println!("{:?}", GraphLayout::into_weakly_connected_components(g));
+        assert_eq!(GraphLayout::into_weakly_connected_components(g).len(), 2);
     }
 
     #[test]
@@ -509,7 +502,6 @@ mod tests {
         }
         g.add_edge(NodeIndex::from(1), NodeIndex::from(0), i32::default());
         g.add_edge(NodeIndex::from(2), NodeIndex::from(0), i32::default());
-
-        println!("{:?}", GraphLayout::into_weakly_connected_components(g));
+        assert_eq!(GraphLayout::into_weakly_connected_components(g).len(), 2);
     }
 }
