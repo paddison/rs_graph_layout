@@ -8,9 +8,12 @@ name = "rs_graph_layout"
 crate-type = ["cdylib"]
 
 [dependencies]
-petgraph = "0.6.3"
-graph_generator = { git = "https://github.com/paddison/graph_generator" }
+petgraph = "0.6.4"
+rust-sugiyama = { git = "https://github.com/paddison/rust-sugyama.git" }
 pyo3 = { version = "0.19.1", features = ["extension-module"] }
+
+[dev-dependencies]
+graph_generator = { git = "https://github.com/paddison/graph_generator" }
 
 [build-dependencies]
 pyo3-build-config = "0.19.1"

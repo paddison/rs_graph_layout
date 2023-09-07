@@ -9,8 +9,7 @@ use petgraph::{
     Direction, visit::{IntoNodeIdentifiers, IntoNeighbors}, data::Build
 };
 
-
-pub type NodePositions = HashMap<usize, (isize, isize)>;
+use super::NodePositions;
 
 /// Represents a layout of a graph.
 /// The nodes of the graph are arranged in layers. 
