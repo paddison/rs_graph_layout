@@ -14,7 +14,7 @@ pub type NodePositions = HashMap<usize, (isize, isize)>;
 #[pyfunction]
 pub fn create_layouts_i32(nodes: Vec<u32>, edges: Vec<(u32, u32)>, node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
     println!("nodes: {:?}\nedges: {:?}\n {}", nodes, edges, global_tasks_in_first_row);
-    let layouts = rust_sugiyama::algorithm::build_layout_from_edges(&edges, 1, node_size as usize * 4);
+    let layouts = rust_sugiyama::algorithm::build_layout_from_vertices_and_edges(&nodes, &edges, 1, node_size as usize * 4);
     let mut all_positions = Vec::new();
     let mut width_list = Vec::new();
     let mut height_list = Vec::new();

@@ -274,7 +274,7 @@ dependencies = [
 [[package]]
 name = "rust-sugiyama"
 version = "0.1.0"
-source = "git+https://github.com/paddison/rust-sugyama.git#918ad81115de26c4d1ec4f1c44a1f939877de89b"
+source = "git+https://github.com/paddison/rust-sugyama.git#ea6f4f3664acc7a68fd51e142a0c3fea439855b3"
 dependencies = [
  "petgraph",
 ]
