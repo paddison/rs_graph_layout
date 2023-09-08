@@ -22,8 +22,8 @@ pub fn create_layouts_i32(nodes: Vec<u32>, edges: Vec<(u32, u32)>, node_size: is
         let mut positions = HashMap::new();
         width_list.push(width);
         height_list.push(height);
-        for (id, pos) in layout {
-            positions.insert(id, pos);    
+        for (id, (x, y)) in layout {
+            positions.insert(id, (x, -y));    
         }
         all_positions.push(positions);
     }
