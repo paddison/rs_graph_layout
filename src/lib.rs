@@ -12,8 +12,11 @@ pub type NodePositions = HashMap<usize, (isize, isize)>;
 /// of the graph.
 /// This is the version where the data of the nodes will be a i32 integer.
 #[pyfunction]
-pub fn create_layouts_i32(nodes: Vec<u32>, edges: Vec<(u32, u32)>, node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
+pub fn create_layouts_i32(mut nodes: Vec<u32>, mut edges: Vec<(u32, u32)>, node_size: isize, global_tasks_in_first_row: bool) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
     println!("nodes: {:?}\nedges: {:?}\n {}", nodes, edges, global_tasks_in_first_row);
+    // decrement edges and nodes by one since networkx graph is 1 based.
+    nodes.iter_mut().for_each(|v| *v -= 1);
+    edges.iter_mut().for_each(|(t, h)| { *t -= 1; *h -= 1; });
     let layouts = rust_sugiyama::algorithm::build_layout_from_vertices_and_edges(&nodes, &edges, 1, node_size as usize * 4);
     let mut all_positions = Vec::new();
     let mut width_list = Vec::new();
@@ -22,8 +25,9 @@ pub fn create_layouts_i32(nodes: Vec<u32>, edges: Vec<(u32, u32)>, node_size: is
         let mut positions = HashMap::new();
         width_list.push(width);
         height_list.push(height);
-        for (id, (x, y)) in layout {
-            positions.insert(id, (x, -y));    
+        for ((_, id), (x, y)) in layout {
+            // don't forget to increment id again to make it fit for networkx
+            positions.insert(id + 1, (x, y));    
         }
         all_positions.push(positions);
     }
