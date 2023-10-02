@@ -9,8 +9,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 petgraph = "0.6.4"
-rust-sugiyama = { git = "https://github.com/paddison/rust-sugyama.git" }
+#rust-sugiyama = { git = "https://github.com/paddison/rust-sugyama.git", branch="no-dummies" }
+rust-sugiyama = { path = "../rust-sugiyama" }
 pyo3 = { version = "0.19.1", features = ["extension-module"] }
+log = "0.4.20"
+env_logger = "0.10.0"
 
 [dev-dependencies]
 graph_generator = { git = "https://github.com/paddison/graph_generator" }
