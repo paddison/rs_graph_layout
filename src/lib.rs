@@ -27,7 +27,7 @@ pub fn create_layouts_original(
     info!(target: "temanejo", "Original method: Got {} vertices and {} edges. Vertex size: {}", nodes.len(), edges.len(), vertex_size);
     debug!(target: "temanejo", "Vertices {:?}\nEdges: {:?}", nodes, edges);
 
-    GraphLayout::<isize>::create_layers(&nodes, &edges, vertex_size, global_tasks_in_first_row)
+    GraphLayout::create_layers(&nodes, &edges, vertex_size, global_tasks_in_first_row)
 }
 
 /// Create the layouts for each weakly connected component contained in edges.
