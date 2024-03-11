@@ -52,11 +52,6 @@ impl<T: Default> GraphLayout<T> {
         let mut height_list = Vec::new();
         let mut graph = StableDiGraph::<T, i32>::new();
 
-        let mut graphs = Self::into_weakly_connected_components(graph)
-            .into_iter()
-            .map(|subgraph| Self::new(subgraph, node_size, global_tasks_in_first_row))
-            .collect::<Vec<_>>();
-
         for _ in nodes {
             graph.add_node(T::default());
         }
@@ -69,6 +64,11 @@ impl<T: Default> GraphLayout<T> {
                 0,
             );
         }
+
+        let mut graphs = Self::into_weakly_connected_components(graph)
+            .into_iter()
+            .map(|subgraph| Self::new(subgraph, node_size, global_tasks_in_first_row))
+            .collect::<Vec<_>>();
 
         for graph in graphs.iter_mut() {
             if graph.graph.edge_count() != 0 {
@@ -540,9 +540,7 @@ enum GraphPrintStyle {
 #[cfg(test)]
 mod tests {
     use super::GraphLayout;
-    use graph_generator as GG;
     use petgraph::stable_graph::NodeIndex;
-    use std::time::Instant;
 
     static _LAYOUT_1000: [(u32, u32); 1000] = [
         (0, 1),
@@ -1546,34 +1544,6 @@ mod tests {
         (396, 709),
         (821, 903),
     ];
-
-    #[test]
-    fn test_create_layout() {
-        let layout = GG::GraphLayout::new_from_num_nodes(2000, 3);
-        let edges = layout
-            .build_edges()
-            .into_iter()
-            .map(|(n, s): (usize, usize)| (n as u32, s as u32))
-            .collect::<Vec<(u32, u32)>>();
-        println!("start");
-        let start = Instant::now();
-        let layouts = GraphLayout::<u32>::create_layers(&[1], &edges, 40, false);
-        let end = start.elapsed().as_micros();
-        println!("{} us.", end);
-        println!("{:?}", layouts);
-    }
-
-    #[test]
-    fn test_add_node() {
-        let mut g = petgraph::stable_graph::StableDiGraph::<(), i32>::new();
-        g.add_node(());
-        g.add_node(());
-        let g = petgraph::stable_graph::StableDiGraph::<(), i32>::from_edges(&[(1, 2), (3, 4)]);
-        println!(
-            "{:?}",
-            g.node_indices().map(|n| n.index()).collect::<Vec<_>>()
-        );
-    }
 
     #[test]
     fn test_into_weakly_connected_components() {
