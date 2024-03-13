@@ -5,9 +5,8 @@ use std::{
 
 use petgraph::{
     algo::toposort,
-    data::Build,
-    stable_graph::{DefaultIx, NodeIndex, StableDiGraph},
-    visit::{IntoNeighbors, IntoNodeIdentifiers, NodeCount},
+    stable_graph::{NodeIndex, StableDiGraph},
+    visit::IntoNodeIdentifiers,
     Direction,
 };
 
@@ -30,7 +29,7 @@ pub struct GraphLayout {
     layers: RefCell<Vec<Vec<Option<NodeIndex>>>>,
     level_of_node: RefCell<HashMap<NodeIndex, usize>>,
     index_of_node: RefCell<HashMap<NodeIndex, usize>>,
-    node_size: isize,
+    _node_size: isize,
     node_separation: isize,
     global_tasks_in_first_row: bool,
 }
@@ -127,44 +126,52 @@ impl GraphLayout {
     fn into_weakly_connected_components(
         graph: StableDiGraph<(), ()>,
     ) -> Vec<StableDiGraph<(), ()>> {
-        let mut components = Vec::new(); 
+        let mut components = Vec::new();
         let mut visited = HashSet::new();
 
         for node in graph.node_indices() {
-            if visited.contains(&node) { continue; }
+            if visited.contains(&node) {
+                continue;
+            }
 
             let component_nodes = Self::component_dfs(node, &graph);
             let component = graph.filter_map(
-                |n, w| if component_nodes.contains(&n) { Some(*w) } else { None }, 
+                |n, w| {
+                    if component_nodes.contains(&n) {
+                        Some(*w)
+                    } else {
+                        None
+                    }
+                },
                 |_, w| Some(*w),
             );
 
-            component_nodes.into_iter().for_each(|n| { visited.insert(n); } );
+            component_nodes.into_iter().for_each(|n| {
+                visited.insert(n);
+            });
             components.push(component);
         }
 
-        return components;
+        components
     }
 
-    fn component_dfs(
-        start: NodeIndex, 
-        graph: &StableDiGraph<(), ()>, 
-    ) -> HashSet<NodeIndex> {
-        let mut queue = vec![start]; 
+    fn component_dfs(start: NodeIndex, graph: &StableDiGraph<(), ()>) -> HashSet<NodeIndex> {
+        let mut queue = vec![start];
         let mut visited = HashSet::new();
 
         visited.insert(start);
-        
+
         while let Some(cur) = queue.pop() {
             for neighbor in graph.neighbors_undirected(cur) {
-                if visited.contains(&neighbor) { continue; }
+                if visited.contains(&neighbor) {
+                    continue;
+                }
                 visited.insert(neighbor);
                 queue.push(neighbor);
-
             }
         }
 
-        return visited;
+        visited
     }
 
     fn new(
@@ -177,7 +184,7 @@ impl GraphLayout {
             level_of_node: RefCell::new(HashMap::new()),
             index_of_node: RefCell::new(HashMap::new()),
             layers: RefCell::new(Vec::new()),
-            node_size,
+            _node_size: node_size,
             node_separation: node_size * 4,
             global_tasks_in_first_row,
         }
@@ -275,11 +282,9 @@ impl GraphLayout {
             for _ in 0..2 {
                 let levels = self.layers.borrow().clone();
                 for (level_index, level) in levels.into_iter().enumerate() {
-                    for node_opt in level.iter().skip(1) {
-                        if let Some(node) = node_opt {
-                            if let Some(left) = level[self.get_index_of_node(&node).unwrap() - 1] {
-                                self.reduce_crossings(*node, left, level_index)
-                            }
+                    for node in level.iter().skip(1).flatten() {
+                        if let Some(left) = level[self.get_index_of_node(node).unwrap() - 1] {
+                            self.reduce_crossings(*node, left, level_index)
                         }
                     }
                 }
@@ -347,8 +352,7 @@ impl GraphLayout {
                 .graph
                 .neighbors_directed(node, Direction::Incoming)
                 .filter_map(|predecessor| {
-                    self.get_level_of_node(&predecessor)
-                        .and_then(|level| Some(level + 1))
+                    self.get_level_of_node(&predecessor).map(|level| level + 1)
                 })
                 .max()
                 .unwrap_or(0);
@@ -370,12 +374,8 @@ impl GraphLayout {
             Direction::Outgoing => neighbor_levels
                 .min()
                 .unwrap_or(self.get_nums_of_level())
-                .checked_sub(1)
-                .unwrap_or(0), // move up
-            Direction::Incoming => neighbor_levels
-                .max()
-                .and_then(|level| Some(level + 1))
-                .unwrap_or(0), // move down
+                .saturating_sub(1), // move up
+            Direction::Incoming => neighbor_levels.max().map(|level| level + 1).unwrap_or(0), // move down
         };
 
         let current_node_level = self.get_level_of_node(&node).unwrap();
@@ -401,7 +401,7 @@ impl GraphLayout {
         let get_direct_successors = |node| {
             self.graph
                 .neighbors_directed(node, Direction::Outgoing)
-                .filter(|n| self.get_level_of_node(&n).unwrap().abs_diff(level_index) < 2)
+                .filter(|n| self.get_level_of_node(n).unwrap().abs_diff(level_index) < 2)
                 .collect::<Vec<_>>()
         };
 
@@ -455,7 +455,7 @@ impl GraphLayout {
         let neighbor_indices: Vec<f64> = self
             .graph
             .neighbors_undirected(node)
-            .filter(|neighbor| level_index.abs_diff(self.get_level_of_node(&neighbor).unwrap()) < 2)
+            .filter(|neighbor| level_index.abs_diff(self.get_level_of_node(neighbor).unwrap()) < 2)
             .map(|neighbor| self.get_index_of_node(&neighbor).unwrap() as f64)
             .collect();
 
@@ -546,13 +546,19 @@ mod tests {
 
     #[test]
     fn into_weakly_connected_components_two_components_correct_nodes_and_edges() {
-       let g = petgraph::stable_graph::StableDiGraph::<(), ()>::from_edges([(0, 1), (1, 2), (3, 2), (4, 5), (4, 6)]);
-       let sgs = GraphLayout::into_weakly_connected_components(g);
-       assert_eq!(sgs.len(), 2);
-       assert!(sgs[0].contains_edge(0.into(), 1.into()));
-       assert!(sgs[0].contains_edge(1.into(), 2.into()));
-       assert!(sgs[0].contains_edge(3.into(), 2.into()));
-       assert!(sgs[1].contains_edge(4.into(), 5.into()));
-       assert!(sgs[1].contains_edge(4.into(), 6.into()));
-   }
+        let g = petgraph::stable_graph::StableDiGraph::<(), ()>::from_edges([
+            (0, 1),
+            (1, 2),
+            (3, 2),
+            (4, 5),
+            (4, 6),
+        ]);
+        let sgs = GraphLayout::into_weakly_connected_components(g);
+        assert_eq!(sgs.len(), 2);
+        assert!(sgs[0].contains_edge(0.into(), 1.into()));
+        assert!(sgs[0].contains_edge(1.into(), 2.into()));
+        assert!(sgs[0].contains_edge(3.into(), 2.into()));
+        assert!(sgs[1].contains_edge(4.into(), 5.into()));
+        assert!(sgs[1].contains_edge(4.into(), 6.into()));
+    }
 }
