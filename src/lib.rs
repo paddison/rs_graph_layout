@@ -85,7 +85,7 @@ pub fn create_layouts_original(
     vertex_size: isize,
     global_tasks_in_first_row: bool,
 ) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
-    env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
+    let _ = env_logger::Builder::from_env(Env::default().default_filter_or("trace")).try_init();
     info!(target: "temanejo", "Original method: Got {} vertices and {} edges. Vertex size: {}", nodes.len(), edges.len(), vertex_size);
     debug!(target: "temanejo", "Vertices {:?}\nEdges: {:?}", nodes, edges);
 
@@ -103,7 +103,7 @@ pub fn create_layouts_sugiyama(
     mut edges: Vec<(u32, u32)>,
     config: SugiyamaConfig,
 ) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
-    env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
+    let _ = env_logger::Builder::from_env(Env::default().default_filter_or("trace")).try_init();
     info!(target: "temanejo", "Sugiyama's method: Got {} vertices and {} edges. Vertex size: {}", nodes.len(), edges.len(), config.vertex_size);
     debug!(target: "temanejo", "Vertices {:?}\nEdges: {:?}", nodes, edges);
     let mut layout_list = Vec::new();
