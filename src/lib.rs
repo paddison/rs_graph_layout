@@ -6,9 +6,71 @@ use env_logger::Env;
 use graph_layout::GraphLayout;
 use log::{debug, info};
 use pyo3::prelude::*;
-use rust_sugiyama::{CrossingMinimization, RankingType};
+use rust_sugiyama::{C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT};
 
 pub type NodePositions = HashMap<usize, (isize, isize)>;
+
+#[pyclass]
+#[derive(Clone)]
+pub struct SugiyamaConfig {
+    #[pyo3(get, set)]
+    vertex_size: isize,
+    #[pyo3(get, set)]
+    dummy_vertices: bool,
+    #[pyo3(get, set)]
+    dummy_size: f64,
+    #[pyo3(get, set)]
+    crossing_minimization: String,
+    #[pyo3(get, set)]
+    transpose: bool,
+    #[pyo3(get, set)]
+    layering_type: String,
+}
+
+
+#[pymethods]
+impl SugiyamaConfig {
+    #[new]
+    #[pyo3(signature = (
+            vertex_size=40,
+            dummy_vertices=true,
+            dummy_size=1.0,
+            crossing_minimization=rust_sugiyama::C_MINIMIZATION_DEFAULT.into(),
+            transpose=false,
+            layering_type=rust_sugiyama::RANKING_TYPE_DEFAULT.into(),
+            ))]
+    fn new(
+        vertex_size: isize,
+        dummy_vertices: bool,
+        dummy_size: f64,
+        crossing_minimization: &str,
+        transpose: bool,
+        layering_type: &str,
+    ) -> Self {
+        Self {
+            vertex_size,
+            dummy_vertices,
+            dummy_size,
+            crossing_minimization: crossing_minimization.to_string(),
+            transpose,
+            layering_type: layering_type.to_string(),
+        }
+    }
+}
+
+impl From<SugiyamaConfig> for rust_sugiyama::Config {
+    fn from(config: SugiyamaConfig) -> Self {
+        Self {
+            minimum_length: rust_sugiyama::MINIMUM_LENGTH_DEFAULT,
+            vertex_spacing: config.vertex_size as usize * 4,
+            dummy_size: config.dummy_size,
+            dummy_vertices: config.dummy_vertices,
+            c_minimization: config.crossing_minimization.try_into().unwrap_or(C_MINIMIZATION_DEFAULT),
+            transpose: config.transpose,
+            ranking_type: config.layering_type.try_into().unwrap_or(RANKING_TYPE_DEFAULT),
+        }
+    }
+}
 
 /// Create the layouts for each weakly connected component contained in edges.
 ///
@@ -39,15 +101,10 @@ pub fn create_layouts_original(
 pub fn create_layouts_sugiyama(
     mut nodes: Vec<u32>,
     mut edges: Vec<(u32, u32)>,
-    vertex_size: isize,
-    dummy_vertices: bool,
-    dummy_size: f64,
-    crossing_minimization: String,
-    transpose: bool,
-    layering_type: String,
+    config: SugiyamaConfig,
 ) -> (Vec<NodePositions>, Vec<usize>, Vec<usize>) {
     env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
-    info!(target: "temanejo", "Sugiyama's method: Got {} vertices and {} edges. Vertex size: {}", nodes.len(), edges.len(), vertex_size);
+    info!(target: "temanejo", "Sugiyama's method: Got {} vertices and {} edges. Vertex size: {}", nodes.len(), edges.len(), config.vertex_size);
     debug!(target: "temanejo", "Vertices {:?}\nEdges: {:?}", nodes, edges);
     let mut layout_list = Vec::new();
     let mut width_list = Vec::new();
@@ -61,16 +118,7 @@ pub fn create_layouts_sugiyama(
     });
 
     let layouts = rust_sugiyama::from_vertices_and_edges(&nodes, &edges)
-        .vertex_spacing(vertex_size as usize * 4)
-        .dummy_vertices(dummy_vertices)
-        .dummy_size(dummy_size)
-        .crossing_minimization(
-            crossing_minimization
-                .try_into()
-                .unwrap_or(CrossingMinimization::Median),
-        )
-        .transpose(transpose)
-        .layering_type(layering_type.try_into().unwrap_or(RankingType::Up))
+        .with_config(config.into())
         .build();
 
     for (layout, width, height) in layouts {
@@ -86,6 +134,7 @@ pub fn create_layouts_sugiyama(
 
 #[pymodule]
 fn rs_graph_layout(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_class::<SugiyamaConfig>()?;
     m.add_function(wrap_pyfunction!(create_layouts_original, m)?)?;
     m.add_function(wrap_pyfunction!(create_layouts_sugiyama, m)?)?;
     Ok(())
