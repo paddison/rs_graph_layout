@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 petgraph = "0.6.4"
-rust-sugiyama = { path = "../rust-sugiyama" }
+rust-sugiyama = "0.1.0"
 pyo3 = { version = "0.19.1", features = ["extension-module"] }
 log = "0.4.20"
 env_logger = "0.10.0"
