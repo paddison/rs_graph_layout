@@ -3,7 +3,7 @@ use std::time::SystemTime;
 const LCG_MULTIPLIER: usize = 0x5deece66d;
 const LCG_INCREMENT: usize = 0x5deece66d;
 
-struct LCG {
+pub(crate) struct LCG {
     state: u128,
     a: usize,
     c: usize,
@@ -39,7 +39,7 @@ impl LCG {
         self.state
     }
 
-    fn generate_range(&mut self, range: usize) -> usize {
+    pub fn generate_range(&mut self, range: usize) -> usize {
         ((self.next() >> 64) % range as u128) as usize
     }
 }
