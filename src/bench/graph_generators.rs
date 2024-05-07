@@ -1,4 +1,5 @@
 use std::time::SystemTime;
+use crate::bench::lcg::LCG;
 
 // It may be a good idea to store edges in layer corresponding
 // to if they are contained in the lower, upper or middle layers
@@ -139,11 +140,11 @@ impl LayeredGraphRandomizer {
 
 #[test]
 fn test_layered_graph_randomizer_determine_relative_layer_odd() {
-    let lgr = LayeredGraphGenerator::new(5).add_edges(2);
+    let lgr = LayeredGraphGenerator::new(5).add_edges(3);
     let actual: Vec<_> = (0..lgr.n)
-        .map(|n| lgr.determine_relative_layer(n).0)
+        .map(|n| lgr.determine_relative_layer(n))
         .collect();
-    let expected = vec![0, 1, 2, 1, 0];
+    let expected = vec![(0, false), (1, false), (2, false), (1, true), (0, true)];
     assert_eq!(actual, expected);
 }
 
@@ -151,9 +152,9 @@ fn test_layered_graph_randomizer_determine_relative_layer_odd() {
 fn test_layered_graph_randomizer_determine_relative_layer_even() {
     let lgr = LayeredGraphGenerator::new(6).add_edges(2);
     let actual: Vec<_> = (0..lgr.n)
-        .map(|n| lgr.determine_relative_layer(n).0)
+        .map(|n| lgr.determine_relative_layer(n))
         .collect();
-    let expected = vec![0, 1, 2, 2, 1, 0];
+    let expected = vec![(0, false), (1, false), (2, false), (2, true), (1, true), (0, true)];
     assert_eq!(actual, expected);
 }
 
@@ -163,7 +164,40 @@ fn test_layered_graph_randomizer_add_random_edge_even() {
     let mut lgr = LayeredGraphGenerator::new(6).add_edges(2);
     println!("{:?}", lgr.edges);
     lgr = lgr.add_random_edge_in_layer(4);
-    println!("{:?}", lgr.edges);
+    let actual = lgr.edges.last().unwrap();
+    assert!(actual.0 <= 10 && actual.0 >= 7 && actual.1 <= 12 && actual.1 >= 11);
+}
+
+#[test]
+fn determine_node_range_2edges_7layers_3() {
+    let lgr = LayeredGraphGenerator::new(7).add_edges(2);
+    // third layer
+    let actual = lgr.determine_node_range((2, false)); 
+    assert_eq!(actual, (4, 3));
+}
+
+#[test]
+fn determine_node_range_2edges_7layers_4() {
+    let lgr = LayeredGraphGenerator::new(7).add_edges(2);
+    // third layer
+    let actual = lgr.determine_node_range((2, true)); 
+    assert_eq!(actual, (4, 15));
+}
+
+#[test]
+fn determine_node_range_2edges_8layers_4() {
+    let lgr = LayeredGraphGenerator::new(8).add_edges(2);
+    // third layer
+    let actual = lgr.determine_node_range((3, false)); 
+    assert_eq!(actual, (8, 7));
+}
+
+#[test]
+fn determine_node_range_2edges_8layers_5() {
+    let lgr = LayeredGraphGenerator::new(8).add_edges(2);
+    // third layer
+    let actual = lgr.determine_node_range((3, true)); 
+    assert_eq!(actual, (8, 15));
 }
 
 /// Calculates sum i=0 to (n - 1)(k^i)
