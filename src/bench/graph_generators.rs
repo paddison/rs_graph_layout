@@ -43,6 +43,7 @@ impl LayeredGraphGenerator {
     }
 }
 
+// make this a wrapper around an lcg and make it seedable
 struct LayeredGraphRandomizer {
     n: usize, // number of layers
     k: usize, // degree
@@ -57,7 +58,7 @@ impl LayeredGraphRandomizer {
 
     pub fn add_random_edge(self) -> Self {
         let layer = LCG::new().generate_range(self.n);
-        self.add_random_edge_in_layer(layer)
+        self.add_random_edge_in_layer(layer + 1) // this function assumes layers start at one
     }
 
     pub fn add_random_edges(mut self, amount: usize) -> Self {
@@ -71,6 +72,11 @@ impl LayeredGraphRandomizer {
     /// "layer" has to be less than the amount of layers in the graph minus one
     /// and greater 1.
     /// Layers start from one
+    ///
+    /// Since edges are added randomly, and there is a maximum amount of edges
+    /// that can be added, we simply try 100 iterations to add an edge.
+    /// If no edge valid edges is found after 100 tries, simply return the graph
+    /// as is.
     ///
     pub fn add_random_edge_in_layer(mut self, mut layer: usize) -> Self {
         // todos think about how to adjust layers so it works
@@ -119,13 +125,8 @@ impl LayeredGraphRandomizer {
 
     fn determine_node_range(&self, (layer, is_lower_half): (usize, bool)) -> (usize, usize) {
         // how many vertices are in that layer
-        let n_vertices = 2usize.pow(layer as u32);
-        let mut start = n_vertices - 1;
-        let bool = true;
-        match bool {
-            true => (),
-            false => (),
-        }
+        let n_vertices = self.k.pow(layer as u32);
+        let mut start = geo_series(self.k, layer as u32);
         if is_lower_half {
             start = self.n_vertices - start - n_vertices;
         }
@@ -181,6 +182,7 @@ fn determine_node_range_2edges_7layers_4() {
     let lgr = LayeredGraphGenerator::new(7).add_edges(2);
     // third layer
     let actual = lgr.determine_node_range((2, true)); 
+    println!("{}", lgr.n_vertices);
     assert_eq!(actual, (4, 15));
 }
 
@@ -198,6 +200,22 @@ fn determine_node_range_2edges_8layers_5() {
     // third layer
     let actual = lgr.determine_node_range((3, true)); 
     assert_eq!(actual, (8, 15));
+}
+
+#[test]
+fn determine_node_range_3edges_5layers_2() {
+    let lgr = LayeredGraphGenerator::new(5).add_edges(3);
+    // third layer
+    let actual = lgr.determine_node_range((2, false)); 
+    assert_eq!(actual, (9, 4));
+}
+
+#[test]
+fn determine_node_range_3edges_6layers_4() {
+    let lgr = LayeredGraphGenerator::new(6).add_edges(3);
+    // third layer
+    let actual = lgr.determine_node_range((2, true)); 
+    assert_eq!(actual, (9, 13));
 }
 
 /// Calculates sum i=0 to (n - 1)(k^i)
