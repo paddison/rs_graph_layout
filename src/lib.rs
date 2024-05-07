@@ -1,4 +1,6 @@
 mod graph_layout;
+//#[cfg(feature = "bench")]
+pub mod bench;
 
 use std::collections::HashMap;
 
@@ -26,7 +28,6 @@ pub struct SugiyamaConfig {
     #[pyo3(get, set)]
     layering_type: String,
 }
-
 
 #[pymethods]
 impl SugiyamaConfig {
@@ -65,9 +66,15 @@ impl From<SugiyamaConfig> for rust_sugiyama::Config {
             vertex_spacing: config.vertex_size as usize * 4,
             dummy_size: config.dummy_size,
             dummy_vertices: config.dummy_vertices,
-            c_minimization: config.crossing_minimization.try_into().unwrap_or(C_MINIMIZATION_DEFAULT),
+            c_minimization: config
+                .crossing_minimization
+                .try_into()
+                .unwrap_or(C_MINIMIZATION_DEFAULT),
             transpose: config.transpose,
-            ranking_type: config.layering_type.try_into().unwrap_or(RANKING_TYPE_DEFAULT),
+            ranking_type: config
+                .layering_type
+                .try_into()
+                .unwrap_or(RANKING_TYPE_DEFAULT),
         }
     }
 }
