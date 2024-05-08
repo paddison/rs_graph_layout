@@ -136,14 +136,14 @@ impl GraphLayout {
 
             let component_nodes = Self::component_dfs(node, &graph);
             let component = graph.filter_map(
-                |n, w| {
+                |n, _| {
                     if component_nodes.contains(&n) {
-                        Some(*w)
+                        Some(())
                     } else {
                         None
                     }
                 },
-                |_, w| Some(*w),
+                |_, _| Some(()),
             );
 
             component_nodes.into_iter().for_each(|n| {

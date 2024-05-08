@@ -3,13 +3,13 @@ use std::time::SystemTime;
 const LCG_MULTIPLIER: usize = 0x5deece66d;
 const LCG_INCREMENT: usize = 0x5deece66d;
 
-pub(crate) struct LCG {
+pub(crate) struct Lcg {
     state: u128,
     a: usize,
     c: usize,
 }
 
-impl LCG {
+impl Lcg {
     pub fn new() -> Self {
         // generater state from clock
         let state = SystemTime::now()
@@ -46,7 +46,7 @@ impl LCG {
 
 #[test]
 fn test_lcg_generate_range() {
-    let mut lcg = LCG::new();
+    let mut lcg = Lcg::new();
     let next = lcg.generate_range(10);
 
     assert!(next < 10);

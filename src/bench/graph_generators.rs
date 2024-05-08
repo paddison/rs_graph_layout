@@ -1,5 +1,4 @@
-use crate::bench::lcg::LCG;
-use std::time::SystemTime;
+use crate::bench::lcg::Lcg;
 
 /*********************************************************
  *
@@ -10,14 +9,19 @@ use std::time::SystemTime;
 
 /// A Layered Graph Generator is used to create a graph in
 /// the form of:
-/// 1    /---*---\
-/// 2  /-*-\   /-*-\
-/// 3  *-v-*   *-v-*
-/// 4    *---v---*
-/// 5        *
+///
+/// ```
+/// Layer     Layer(relative)   Tree half     Graph     
+/// 1         1                 Top----|           /0\
+/// 2         2                        |       /1\     /2\
+/// 3         3                        |      3   4   5   6
+/// 4         2                 Bottom-|       \7/     \8/
+/// 5         1                        |           \9/
+/// 
+/// ```
 ///     
 /// It can be seen as two complete k-ary trees "glued" together
-/// with the lower tree being upside down.
+/// with the bottom tree being upside down.
 ///
 /// The graph is created by specifying an amount of n layers.
 /// The above graph for example has n = 5 layers.
@@ -86,8 +90,8 @@ impl LayeredGraphGenerator {
             edges,
             n_vertices: total_vertices,
             lcg: match self.seed {
-                Some(seed) => LCG::new_seed(seed),
-                None => LCG::new(),
+                Some(seed) => Lcg::new_seed(seed),
+                None => Lcg::new(),
             },
         }
     }
@@ -128,7 +132,7 @@ struct LayeredGraphRandomizer {
     k: usize, // degree
     edges: Vec<(usize, usize)>,
     n_vertices: usize,
-    lcg: LCG,
+    lcg: Lcg,
 }
 
 impl LayeredGraphRandomizer {
@@ -171,8 +175,8 @@ impl LayeredGraphRandomizer {
             // first create edge, then handle case if it is on bottom half or not
             layer -= 1; // subtract one so it behaves as if zero indexed
                         //
-            let upper_range = self.determine_node_range(self.determine_relative_layer(layer));
-            let lower_range = self.determine_node_range(self.determine_relative_layer(layer + 1));
+            let upper_range = self.determine_vertex_indices(self.determine_relative_layer(layer));
+            let lower_range = self.determine_vertex_indices(self.determine_relative_layer(layer + 1));
 
             // try do add an edge. it might be that the layer is already full
             // therefore try to add an edge only for a certain number of iterations
@@ -197,17 +201,40 @@ impl LayeredGraphRandomizer {
         self
     }
 
+    /// determine the 'relative' layer in the graph.
+    /// since the graph can be thought of as two k-ary trees glued together
+    /// with the lower one being reversed top to bottom,
+    /// the relative layer corresponds to the layer in the respective tree.
+    /// examples: 
+    /// 5 layers:
+    /// abs: 1 2 3 4 5
+    /// rel: 1 2 3 2 1
+    ///
+    /// 6 layers:
+    /// abs: 1 2 3 4 5 6
+    /// rel: 1 2 3 3 2 1
     fn determine_relative_layer(&self, layer: usize) -> (usize, bool) {
         if layer < self.n.div_ceil(2) {
             (layer, false)
         } else {
             let mut ret = self.n / 2;
-            ret = ((self.n - 1) / 2) - (ret as isize - layer as isize).abs() as usize;
+            ret = ((self.n - 1) / 2) - (ret as isize - layer as isize).unsigned_abs();
             (ret, true)
         }
     }
 
-    fn determine_node_range(&self, (layer, is_lower_half): (usize, bool)) -> (usize, usize) {
+    /// Determine the indices of the vertices in a layer.
+    /// indices are ordered top to bottom and left to right.
+    /// 
+    /// For example in a graph with 4 layers, and degree 3, the indices will be:
+    ///
+    ///         0    
+    ///     1   2   3
+    ///     4   5   6
+    ///         7
+    ///
+    /// 
+    fn determine_vertex_indices(&self, (layer, is_lower_half): (usize, bool)) -> (usize, usize) {
         // how many vertices are in that layer
         let n_vertices = self.k.pow(layer as u32);
         let mut start = geo_series(self.k, layer as u32);
@@ -264,7 +291,7 @@ fn test_layered_graph_randomizer_add_random_edge_even() {
 fn determine_node_range_2edges_7layers_3() {
     let lgr = LayeredGraphGenerator::new(7).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((2, false));
+    let actual = lgr.determine_vertex_indices((2, false));
     assert_eq!(actual, (4, 3));
 }
 
@@ -272,7 +299,7 @@ fn determine_node_range_2edges_7layers_3() {
 fn determine_node_range_2edges_7layers_4() {
     let lgr = LayeredGraphGenerator::new(7).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((2, true));
+    let actual = lgr.determine_vertex_indices((2, true));
     println!("{}", lgr.n_vertices);
     assert_eq!(actual, (4, 15));
 }
@@ -281,7 +308,7 @@ fn determine_node_range_2edges_7layers_4() {
 fn determine_node_range_2edges_8layers_4() {
     let lgr = LayeredGraphGenerator::new(8).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((3, false));
+    let actual = lgr.determine_vertex_indices((3, false));
     assert_eq!(actual, (8, 7));
 }
 
@@ -289,7 +316,7 @@ fn determine_node_range_2edges_8layers_4() {
 fn determine_node_range_2edges_8layers_5() {
     let lgr = LayeredGraphGenerator::new(8).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((3, true));
+    let actual = lgr.determine_vertex_indices((3, true));
     assert_eq!(actual, (8, 15));
 }
 
@@ -297,7 +324,7 @@ fn determine_node_range_2edges_8layers_5() {
 fn determine_node_range_3edges_5layers_2() {
     let lgr = LayeredGraphGenerator::new(5).with_degree(3);
     // third layer
-    let actual = lgr.determine_node_range((2, false));
+    let actual = lgr.determine_vertex_indices((2, false));
     assert_eq!(actual, (9, 4));
 }
 
@@ -305,7 +332,7 @@ fn determine_node_range_3edges_5layers_2() {
 fn determine_node_range_3edges_6layers_4() {
     let lgr = LayeredGraphGenerator::new(6).with_degree(3);
     // third layer
-    let actual = lgr.determine_node_range((2, true));
+    let actual = lgr.determine_vertex_indices((2, true));
     assert_eq!(actual, (9, 13));
 }
 
