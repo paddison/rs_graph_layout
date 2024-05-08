@@ -1,18 +1,64 @@
-use std::time::SystemTime;
 use crate::bench::lcg::LCG;
+use std::time::SystemTime;
 
-// It may be a good idea to store edges in layer corresponding
-// to if they are contained in the lower, upper or middle layers
+/*********************************************************
+ *
+ * Graph generators
+ *
+ */
+
+
+/// A Layered Graph Generator is used to create a graph in
+/// the form of:
+/// 1    /---*---\
+/// 2  /-*-\   /-*-\
+/// 3  *-v-*   *-v-*
+/// 4    *---v---*
+/// 5        *
+///     
+/// It can be seen as two complete k-ary trees "glued" together
+/// with the lower tree being upside down.
+///
+/// The graph is created by specifying an amount of n layers.
+/// The above graph for example has n = 5 layers.
+///
+/// It is used to create a [`LayeredGraphRandomizer`], which can be used
+/// to randomize the result graph.
+/// Thus it can be either initialized with a seed, or let the seed
+/// be set automatically.
+/// Furthermore the degree of the graph can be specified, meaning
+/// that a vertex will always have k outgoing (or incoming, depending
+/// on the layer) edges.
+///
+/// Usage:
+///
+/// ```
+/// // Create a GraphGenerator with 5 layers, a user defined seed of degree 3
+/// let g: LayeredGraphRandomizer = LayeredGraphGenerator::new(5)
+///     .with_seed(123456u128)
+///     .with_degree(3);
+/// ```
+///
+///
 struct LayeredGraphGenerator {
     n: usize,
+    seed: Option<u128>,
 }
 
 impl LayeredGraphGenerator {
     pub fn new(layers: usize) -> Self {
-        Self { n: layers }
+        Self {
+            n: layers,
+            seed: None,
+        }
     }
 
-    pub fn add_edges(self, deg: usize) -> LayeredGraphRandomizer {
+    pub fn with_seed(mut self, seed: u128) -> Self {
+        self.seed = Some(seed);
+        self
+    }
+
+    pub fn with_degree(self, deg: usize) -> LayeredGraphRandomizer {
         // Divide graph into two halfs, and 'glue' them together
         let n_layers_half = self.n.div_ceil(2); // number of layers of one half
         let pow = deg.pow(n_layers_half as u32 - 1);
@@ -39,28 +85,67 @@ impl LayeredGraphGenerator {
             k: deg,
             edges,
             n_vertices: total_vertices,
+            lcg: match self.seed {
+                Some(seed) => LCG::new_seed(seed),
+                None => LCG::new(),
+            },
         }
     }
 }
 
-// make this a wrapper around an lcg and make it seedable
+/// A LayeredGraphRandomizer can be used to randomize a layered graph, created
+/// by a [`LayeredGraphGenerator`].
+///
+/// There are four ways to do so:
+/// 1. [`add_random_edge`]
+/// 2. [`add_random_edges`]
+/// 3. [`add_random_edge_in_layer`]
+/// 4. [`add_random_edges_in_layer`]
+///
+/// These will add additional edges in the graph, likely increasing the amount
+/// of edge crossings between the layers.
+///
+/// Layers are 'one' indexed and add an edge between the specified layer and 
+/// the next one. For example to add a random edge between layer 2 and 3 specify
+/// layer 2.
+///
+/// Adding an edge might fail, it the layer is already full, in which case 
+/// the graph will not be altered.
+///
+/// Example Usage:
+///
+/// ```
+/// // a randomizer can only be created through a LayeredGraphGenerator
+/// let graph_randomizer = LayeredGraphGenerator::new().with_degree(2);
+/// // randomize the graph and get the edges.
+/// let edges: Vec<(usize, usize)> = graph_randomizer
+///                 .add_random_edge()               // add a random edge on a random layer
+///                 .add_random_edges_in_layer(2, 3) // add 2 random edges between layer 3 and 4
+///                 .build();
+/// ```
 struct LayeredGraphRandomizer {
     n: usize, // number of layers
     k: usize, // degree
     edges: Vec<(usize, usize)>,
     n_vertices: usize,
+    lcg: LCG,
 }
 
 impl LayeredGraphRandomizer {
+    /// Build the graph, returning a vec of tuples, where each entry corresponds
+    /// to an edge in the form of `(tail, head)`.
     pub fn build(self) -> Vec<(usize, usize)> {
         self.edges
     }
 
-    pub fn add_random_edge(self) -> Self {
-        let layer = LCG::new().generate_range(self.n);
+    /// Add a single random edge between two random layers
+    pub fn add_random_edge(mut self) -> Self {
+        let layer = self.lcg.generate_range(self.n);
         self.add_random_edge_in_layer(layer + 1) // this function assumes layers start at one
     }
 
+
+    /// Add `amount` random edges in the graph on random layers
     pub fn add_random_edges(mut self, amount: usize) -> Self {
         for _ in 0..amount {
             self = self.add_random_edge();
@@ -79,23 +164,21 @@ impl LayeredGraphRandomizer {
     /// as is.
     ///
     pub fn add_random_edge_in_layer(mut self, mut layer: usize) -> Self {
-        // todos think about how to adjust layers so it works
         // simply ignore invalid input
         if layer >= self.n - 1 || layer <= 1 {
             self
         } else {
             // first create edge, then handle case if it is on bottom half or not
-            let mut lcg = LCG::new();
             layer -= 1; // subtract one so it behaves as if zero indexed
-                        // determine the layers we're acting on
+                        //
             let upper_range = self.determine_node_range(self.determine_relative_layer(layer));
             let lower_range = self.determine_node_range(self.determine_relative_layer(layer + 1));
 
             // try do add an edge. it might be that the layer is already full
             // therefore try to add an edge only for a certain number of iterations
             for _ in 0..100 {
-                let tail = self.create_random_vertex(upper_range, &mut lcg);
-                let head = self.create_random_vertex(lower_range, &mut lcg);
+                let tail = self.create_random_vertex(upper_range);
+                let head = self.create_random_vertex(lower_range);
 
                 if !self.edges.contains(&(tail, head)) {
                     self.edges.push((tail, head));
@@ -106,6 +189,7 @@ impl LayeredGraphRandomizer {
         }
     }
 
+    /// Add `amount` edges between layer `layer` and `layer + 1`
     pub fn add_random_edges_in_layer(mut self, amount: usize, layer: usize) -> Self {
         for _ in 0..amount {
             self = self.add_random_edge_in_layer(layer);
@@ -134,14 +218,14 @@ impl LayeredGraphRandomizer {
     }
 
     #[inline(always)]
-    fn create_random_vertex(&self, (n_vertices, start): (usize, usize), lcg: &mut LCG) -> usize {
-        lcg.generate_range(n_vertices) + start
+    fn create_random_vertex(&mut self, (n_vertices, start): (usize, usize)) -> usize {
+        self.lcg.generate_range(n_vertices) + start
     }
 }
 
 #[test]
 fn test_layered_graph_randomizer_determine_relative_layer_odd() {
-    let lgr = LayeredGraphGenerator::new(5).add_edges(3);
+    let lgr = LayeredGraphGenerator::new(5).with_degree(3);
     let actual: Vec<_> = (0..lgr.n)
         .map(|n| lgr.determine_relative_layer(n))
         .collect();
@@ -151,18 +235,25 @@ fn test_layered_graph_randomizer_determine_relative_layer_odd() {
 
 #[test]
 fn test_layered_graph_randomizer_determine_relative_layer_even() {
-    let lgr = LayeredGraphGenerator::new(6).add_edges(2);
+    let lgr = LayeredGraphGenerator::new(6).with_degree(2);
     let actual: Vec<_> = (0..lgr.n)
         .map(|n| lgr.determine_relative_layer(n))
         .collect();
-    let expected = vec![(0, false), (1, false), (2, false), (2, true), (1, true), (0, true)];
+    let expected = vec![
+        (0, false),
+        (1, false),
+        (2, false),
+        (2, true),
+        (1, true),
+        (0, true),
+    ];
     assert_eq!(actual, expected);
 }
 
 #[test]
 fn test_layered_graph_randomizer_add_random_edge_even() {
     // only check if it crashes or not
-    let mut lgr = LayeredGraphGenerator::new(6).add_edges(2);
+    let mut lgr = LayeredGraphGenerator::new(6).with_degree(2);
     println!("{:?}", lgr.edges);
     lgr = lgr.add_random_edge_in_layer(4);
     let actual = lgr.edges.last().unwrap();
@@ -171,69 +262,58 @@ fn test_layered_graph_randomizer_add_random_edge_even() {
 
 #[test]
 fn determine_node_range_2edges_7layers_3() {
-    let lgr = LayeredGraphGenerator::new(7).add_edges(2);
+    let lgr = LayeredGraphGenerator::new(7).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((2, false)); 
+    let actual = lgr.determine_node_range((2, false));
     assert_eq!(actual, (4, 3));
 }
 
 #[test]
 fn determine_node_range_2edges_7layers_4() {
-    let lgr = LayeredGraphGenerator::new(7).add_edges(2);
+    let lgr = LayeredGraphGenerator::new(7).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((2, true)); 
+    let actual = lgr.determine_node_range((2, true));
     println!("{}", lgr.n_vertices);
     assert_eq!(actual, (4, 15));
 }
 
 #[test]
 fn determine_node_range_2edges_8layers_4() {
-    let lgr = LayeredGraphGenerator::new(8).add_edges(2);
+    let lgr = LayeredGraphGenerator::new(8).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((3, false)); 
+    let actual = lgr.determine_node_range((3, false));
     assert_eq!(actual, (8, 7));
 }
 
 #[test]
 fn determine_node_range_2edges_8layers_5() {
-    let lgr = LayeredGraphGenerator::new(8).add_edges(2);
+    let lgr = LayeredGraphGenerator::new(8).with_degree(2);
     // third layer
-    let actual = lgr.determine_node_range((3, true)); 
+    let actual = lgr.determine_node_range((3, true));
     assert_eq!(actual, (8, 15));
 }
 
 #[test]
 fn determine_node_range_3edges_5layers_2() {
-    let lgr = LayeredGraphGenerator::new(5).add_edges(3);
+    let lgr = LayeredGraphGenerator::new(5).with_degree(3);
     // third layer
-    let actual = lgr.determine_node_range((2, false)); 
+    let actual = lgr.determine_node_range((2, false));
     assert_eq!(actual, (9, 4));
 }
 
 #[test]
 fn determine_node_range_3edges_6layers_4() {
-    let lgr = LayeredGraphGenerator::new(6).add_edges(3);
+    let lgr = LayeredGraphGenerator::new(6).with_degree(3);
     // third layer
-    let actual = lgr.determine_node_range((2, true)); 
+    let actual = lgr.determine_node_range((2, true));
     assert_eq!(actual, (9, 13));
 }
 
-/// Calculates sum i=0 to (n - 1)(k^i)
-#[inline(always)]
-fn geo_series(k: usize, n: u32) -> usize {
-    (k.pow(n) - 1) / (k - 1)
-}
-
-#[test]
-fn test_geo_series() {
-    for k in 2usize..10 {
-        let mut cur = 0;
-        for n in 0..10 {
-            assert_eq!(cur, geo_series(k, n));
-            cur += k.pow(n);
-        }
-    }
-}
+/*******************************************
+ *
+ * Helper functions and structs
+ *
+ */
 
 /// Calculates the predecessor of the ith vertex in
 /// a complete k-ary tree
@@ -259,3 +339,20 @@ impl Iterator for EdgesCalculator {
     }
 }
 
+
+/// Calculates sum i=0 to (n - 1)(k^i)
+#[inline(always)]
+fn geo_series(k: usize, n: u32) -> usize {
+    (k.pow(n) - 1) / (k - 1)
+}
+
+#[test]
+fn test_geo_series() {
+    for k in 2usize..10 {
+        let mut cur = 0;
+        for n in 0..10 {
+            assert_eq!(cur, geo_series(k, n));
+            cur += k.pow(n);
+        }
+    }
+}

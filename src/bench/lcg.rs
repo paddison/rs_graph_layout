@@ -44,10 +44,10 @@ impl LCG {
     }
 }
 
-
 #[test]
 fn test_lcg_generate_range() {
     let mut lcg = LCG::new();
     let next = lcg.generate_range(10);
 
-    assert!(next < 10);}
+    assert!(next < 10);
+}
