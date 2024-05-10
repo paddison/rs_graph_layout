@@ -1,4 +1,4 @@
-use crate::bench::lcg::Lcg;
+use super::lcg::Lcg;
 
 /*********************************************************
  *
@@ -44,7 +44,7 @@ use crate::bench::lcg::Lcg;
 /// ```
 ///
 ///
-struct LayeredGraphGenerator {
+pub(crate) struct LayeredGraphGenerator {
     n: usize,
     seed: Option<u128>,
 }
@@ -127,7 +127,7 @@ impl LayeredGraphGenerator {
 ///                 .add_random_edges_in_layer(2, 3) // add 2 random edges between layer 3 and 4
 ///                 .build();
 /// ```
-struct LayeredGraphRandomizer {
+pub(crate) struct LayeredGraphRandomizer {
     n: usize, // number of layers
     k: usize, // degree
     edges: Vec<(usize, usize)>,

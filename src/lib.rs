@@ -1,6 +1,4 @@
 mod graph_layout;
-//#[cfg(feature = "bench")]
-pub mod bench;
 
 use std::collections::HashMap;
 
@@ -8,7 +6,7 @@ use env_logger::Env;
 use graph_layout::GraphLayout;
 use log::{debug, info};
 use pyo3::prelude::*;
-use rust_sugiyama::{C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT};
+use rust_sugiyama::{C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT, CrossingMinimization};
 
 pub type NodePositions = HashMap<usize, (isize, isize)>;
 
@@ -55,6 +53,19 @@ impl SugiyamaConfig {
             crossing_minimization: crossing_minimization.to_string(),
             transpose,
             layering_type: layering_type.to_string(),
+        }
+    }
+}
+
+impl Default for SugiyamaConfig {
+    fn default() -> Self {
+        Self {
+            vertex_size: 40,
+            dummy_vertices: true,
+            dummy_size: 1.0,
+            crossing_minimization: <&'static str>::from(C_MINIMIZATION_DEFAULT).to_string(),
+            transpose: false,
+            layering_type: <&str>::from(RANKING_TYPE_DEFAULT).to_string(),
         }
     }
 }

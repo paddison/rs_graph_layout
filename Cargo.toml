@@ -9,10 +9,20 @@ crate-type = ["cdylib"]
 
 [dependencies]
 petgraph = "0.6.4"
-rust-sugiyama = "0.1.0"
+rust-sugiyama = "0.2.0"
 pyo3 = { version = "0.19.1", features = ["extension-module"] }
 log = "0.4.20"
 env_logger = "0.10.0"
 
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "benches"
+harness = false
+
 [build-dependencies]
 pyo3-build-config = "0.19.1"
+
+[features]
+benchmark = []
