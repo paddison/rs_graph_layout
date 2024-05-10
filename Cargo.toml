@@ -2,10 +2,8 @@
 name = "rs_graph_layout"
 version = "0.1.0"
 edition = "2021"
-
-[lib]
-name = "rs_graph_layout"
 crate-type = ["cdylib"]
+
 
 [dependencies]
 petgraph = "0.6.4"
