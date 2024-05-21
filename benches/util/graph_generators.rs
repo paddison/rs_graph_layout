@@ -6,7 +6,6 @@ use super::lcg::Lcg;
  *
  */
 
-
 /// A Layered Graph Generator is used to create a graph in
 /// the form of:
 ///
@@ -17,7 +16,7 @@ use super::lcg::Lcg;
 /// 3         3                        |      3   4   5   6
 /// 4         2                 Bottom-|       \7/     \8/
 /// 5         1                        |           \9/
-/// 
+///
 /// ```
 ///     
 /// It can be seen as two complete k-ary trees "glued" together
@@ -109,11 +108,11 @@ impl LayeredGraphGenerator {
 /// These will add additional edges in the graph, likely increasing the amount
 /// of edge crossings between the layers.
 ///
-/// Layers are 'one' indexed and add an edge between the specified layer and 
+/// Layers are 'one' indexed and add an edge between the specified layer and
 /// the next one. For example to add a random edge between layer 2 and 3 specify
 /// layer 2.
 ///
-/// Adding an edge might fail, it the layer is already full, in which case 
+/// Adding an edge might fail, it the layer is already full, in which case
 /// the graph will not be altered.
 ///
 /// Example Usage:
@@ -148,7 +147,6 @@ impl LayeredGraphRandomizer {
         self.add_random_edge_in_layer(layer + 1) // this function assumes layers start at one
     }
 
-
     /// Add `amount` random edges in the graph on random layers
     pub fn add_random_edges(mut self, amount: usize) -> Self {
         for _ in 0..amount {
@@ -176,7 +174,8 @@ impl LayeredGraphRandomizer {
             layer -= 1; // subtract one so it behaves as if zero indexed
                         //
             let upper_range = self.determine_vertex_indices(self.determine_relative_layer(layer));
-            let lower_range = self.determine_vertex_indices(self.determine_relative_layer(layer + 1));
+            let lower_range =
+                self.determine_vertex_indices(self.determine_relative_layer(layer + 1));
 
             // try do add an edge. it might be that the layer is already full
             // therefore try to add an edge only for a certain number of iterations
@@ -205,7 +204,7 @@ impl LayeredGraphRandomizer {
     /// since the graph can be thought of as two k-ary trees glued together
     /// with the lower one being reversed top to bottom,
     /// the relative layer corresponds to the layer in the respective tree.
-    /// examples: 
+    /// examples:
     /// 5 layers:
     /// abs: 1 2 3 4 5
     /// rel: 1 2 3 2 1
@@ -225,7 +224,7 @@ impl LayeredGraphRandomizer {
 
     /// Determine the indices of the vertices in a layer.
     /// indices are ordered top to bottom and left to right.
-    /// 
+    ///
     /// For example in a graph with 4 layers, and degree 3, the indices will be:
     ///
     ///         0    
@@ -233,7 +232,7 @@ impl LayeredGraphRandomizer {
     ///     4   5   6
     ///         7
     ///
-    /// 
+    ///
     fn determine_vertex_indices(&self, (layer, is_lower_half): (usize, bool)) -> (usize, usize) {
         // how many vertices are in that layer
         let n_vertices = self.k.pow(layer as u32);
@@ -365,7 +364,6 @@ impl Iterator for EdgesCalculator {
         Some((j, i))
     }
 }
-
 
 /// Calculates sum i=0 to (n - 1)(k^i)
 #[inline(always)]

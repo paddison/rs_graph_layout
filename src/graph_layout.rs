@@ -40,7 +40,7 @@ impl GraphLayout {
     /// A layout contains the position of each node (HashMap of NodeIndex and (x, y)) the height of the layout and the maximum width of the layers.
     /// The layout is created by arranging the nodes of the graph in level and performing some operations them in order to produce a visualization
     /// of the graph.
-    pub(crate) fn create_layers(
+    pub fn create_layers(
         nodes: &[u32],
         edges: &[(u32, u32)],
         node_size: isize,

@@ -1,4 +1,4 @@
-mod graph_layout;
+pub mod graph_layout;
 
 use std::collections::HashMap;
 
@@ -6,7 +6,7 @@ use env_logger::Env;
 use graph_layout::GraphLayout;
 use log::{debug, info};
 use pyo3::prelude::*;
-use rust_sugiyama::{C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT, CrossingMinimization};
+use rust_sugiyama::{CrossingMinimization, C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT};
 
 pub type NodePositions = HashMap<usize, (isize, isize)>;
 
