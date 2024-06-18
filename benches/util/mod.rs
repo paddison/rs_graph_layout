@@ -18,27 +18,36 @@ pub(super) mod comm_graph_config;
 static WHICH_ENV: &str = "WHICH";
 static DIMS_ENV: &str = "DIMS";
 static TYPE_ENV: &str = "TYPE";
+static SAMPLE_SIZE_ENV: &str = "SIZE";
 
+/// Trait that specifies funcionality needed in order to run a benchmark with the
+/// [self::GraphBenchmark::run] method.
+///
+/// Can be implemented to add more benchmarks for different graph types.
 pub(super) trait GraphBenchmarkConfig<'a>
 where
     Self: std::fmt::Display + 'a,
     &'a Self: std::iter::IntoIterator<Item: std::fmt::Display + Copy>,
 {
     type Error: std::fmt::Debug;
-    type Iter: Iterator;
 
+    /// Try to read in the fields of a Config via environment variables.
     fn try_from_env() -> Result<Self, Self::Error>
     where
         Self: Sized;
+    /// Calculate the throughput for a benchmark. Used by [criterion::Throughput].
     fn throughput(&self, other: <&'a Self as IntoIterator>::Item) -> u64;
+    /// Prepare the graph for a benchmark.
     fn prepare_graph(&self, size: <&'a Self as IntoIterator>::Item) -> (Vec<u32>, Vec<(u32, u32)>) {
         let edges = Self::prepare_edges(&self.build_graph(size));
         let vertices = Self::prepare_vertices(&edges);
 
         (vertices, edges)
     }
+    /// build the graph used in the benchmark. 
     fn build_graph(&self, size: <&'a Self as IntoIterator>::Item) -> Vec<(usize, usize)>;
 
+    /// prepare the edges for a benchmark (they cannot start with 0)
     fn prepare_edges(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
         edges
             .into_iter()
@@ -46,6 +55,7 @@ where
             .collect()
     }
 
+    /// calculate the vertices for a benchmark from the edges
     fn prepare_vertices(edges: &[(u32, u32)]) -> Vec<u32> {
         edges
             .iter()
@@ -61,12 +71,28 @@ struct PythonAlgoConfig;
 #[derive(Debug, Clone, Copy)]
 struct RustAlgoConfig;
 
-/// Used to configure the cube benchmark.
+/// Used to configure a benchmark for a graph.
+///
+/// Can be configured via environment variables:
+/// - [self::WHICH_ENV]: which algorithm to run. is a 3-bit number. if the first bit is set, the
+/// original python implementation will be benchmarked. if the second bit is set, the rust port of
+/// the original pythom implementation will be benchmarked. if the third bit is set, sugiyamas
+/// algorithm will be benchmarked. it is possible to benchmark multiple alogrithms at the same
+/// time. the number can be in the range from 0-7.
+/// - [self::SAMPLE_SIZE_ENV]: how many samples to take for each benchmark. used to configure
+/// criterions [criterion::BenchmarkGroup::sample_size] method.
+///
+/// See the respective graph config implementations for details on how to configure them via
+/// environment variables
+/// 
 pub(super) struct GraphBenchmark<'a, T: GraphBenchmarkConfig<'a> + 'a>
 where
     &'a T: IntoIterator<Item: Copy + std::fmt::Display>,
 {
-    /// Measure the Performance for a change in dimensions or timesteps
+    /// Which graph to benchmark for. 
+    /// Currently this is implemented for [self::cube_graph_config::CubeConfig],
+    /// [self::comm_graph_config::CompGraphConfig] and
+    /// [self::layered_graph_config::LayeredGraphConfig]
     graph_config: T,
     //typ: MeasurementType,
     //cube_config: CubeConfig,
@@ -181,12 +207,13 @@ where
         let which = env::var(WHICH_ENV)
             .map_or(Ok(Self::WHICH_DEFAULT), |s| s.parse::<usize>())
             .expect("$WHICH set to non numeric value");
-        let sample_size = env::var("SAMPLES")
+        let sample_size = env::var(SAMPLE_SIZE_ENV)
             .map_or(Ok(Self::SAMPLE_SIZE_DEFAULT), |s| s.parse::<usize>())
             .expect("$WHICH set to non numeric value");
         (which, sample_size) //, typ, cube_config)
     }
 
+    /// Run a benchmark
     pub(crate) fn run(&'a self, c: &mut Criterion) {
         let s = format!("{}", self.write_benchmark_name());
         let mut group = c.benchmark_group(s);

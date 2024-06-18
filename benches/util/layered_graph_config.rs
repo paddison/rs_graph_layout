@@ -6,17 +6,24 @@ use super::{GraphBenchmarkConfig, DIMS_ENV, TYPE_ENV};
 
 const SEED: u128 = 12345;
 
+/// ## Description
+///
+/// What to measure for. 
+/// Can be set via the [super::DIMS_ENV] environment variable.
+/// Valid values are: `'layers'` and `'random'`.
 #[derive(Debug, Clone, Copy)]
 enum MeasurmentType {
+    /// Change the amount of layers for the graph with each benchmark
     Layers,
-    RandomVertices,
+    /// Change the amount of randomly added edges with each benchmark
+    RandomEdges,
 }
 
 impl Display for MeasurmentType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             MeasurmentType::Layers => "layers",
-            MeasurmentType::RandomVertices => "random",
+            MeasurmentType::RandomEdges => "random",
         };
 
         write!(f, "{s}")
@@ -29,7 +36,7 @@ impl TryFrom<&str> for MeasurmentType {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
             "layers" => Ok(Self::Layers),
-            "random" => Ok(Self::RandomVertices),
+            "random" => Ok(Self::RandomEdges),
             other => Err(LayeredGraphConfigError::InvalidMeasurementType(format!(
                 "Unknown measurment type for layered graph: {other}"
             ))),
@@ -45,12 +52,35 @@ impl TryFrom<String> for MeasurmentType {
     }
 }
 
+/// ## Description
+/// Used to configure a [graph_generator::layered_random] for a benchmark.
+///
+/// ## Environment Variables
+///
+/// It can be configured via environment variables when running the benchmark.
+/// These are as following: 
+/// - [super::DIMS_ENV] has the form of `from-to-step_by-degree-fixed_param`. needs to contain
+/// numeric values, used to configure the range of values for the benchmark.
+/// - [super::TYPE_ENV] what to benchmark for. See [self::MeasurementType]
+///
+/// ## Example
+///
+/// As an example, configuring the config with [super::DIMS_ENV] `2-10-1-3-5` and [super::TYPE_ENV]
+/// `layers`, will run a benchmark for graphs with 2 to 10 layers, with outgoing degree of 3,
+/// adding 5 random edges every time.
 pub(crate) struct LayeredGraphConfig {
+    /// What thing to measure for. See [self::MeasurementType]
     typ: MeasurmentType,
+    /// start range
     from: usize,
+    /// end range
     to: usize,
+    /// the degree of a vertices outgoing edge
     degree: usize,
+    /// how to advance the range
     step_by: usize,
+    /// What no to measure for. If measuring for Layers, this is set to random vertices,
+    /// when measuring for random edges this is set to layers.
     fixed_param: usize,
 }
 
@@ -77,8 +107,8 @@ impl From<ParseIntError> for LayeredGraphConfigError {
 }
 
 impl<'a> IntoIterator for &'a LayeredGraphConfig {
-    type Item = <<LayeredGraphConfig as GraphBenchmarkConfig<'a>>::Iter as IntoIterator>::Item;
-    type IntoIter = <LayeredGraphConfig as GraphBenchmarkConfig<'a>>::Iter;
+    type Item = usize;
+    type IntoIter = StepBy<Range<Self::Item>>;
 
     fn into_iter(self) -> Self::IntoIter {
         (self.from..self.to).step_by(self.step_by)
@@ -93,7 +123,6 @@ impl Display for LayeredGraphConfig {
 
 impl<'a> GraphBenchmarkConfig<'a> for LayeredGraphConfig {
     type Error = LayeredGraphConfigError;
-    type Iter = StepBy<Range<usize>>;
 
     fn try_from_env() -> Result<Self, Self::Error>
     where
@@ -134,7 +163,7 @@ impl<'a> GraphBenchmarkConfig<'a> for LayeredGraphConfig {
     fn build_graph(&self, size: <&'_ Self as IntoIterator>::Item) -> Vec<(usize, usize)> {
         let (layers, random_edges) = match self.typ {
             MeasurmentType::Layers => (size, self.fixed_param),
-            MeasurmentType::RandomVertices => (self.fixed_param, size),
+            MeasurmentType::RandomEdges => (self.fixed_param, size),
         };
 
         let mut g = layered_random::LayeredRandomGraph::new(layers).with_seed(SEED).with_degree(self.degree);

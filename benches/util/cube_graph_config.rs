@@ -4,6 +4,21 @@ use graph_generator::comm::CubeGraph;
 
 use super::GraphBenchmarkConfig;
 
+/// ## Description
+/// Used to configure a [graph_generator::comm::CubeGraph] for a benchmark.
+///
+/// ## Environment Variables
+///
+/// It can be configured via environment variables when running the benchmark.
+/// These are as following: 
+/// - [super::DIMS_ENV] has the form of `from-to-step_by-fixed_param`. needs to contain
+/// numeric values, used to configure the range of values for the benchmark.
+/// - [super::TYPE_ENV] what to benchmark for. See [self::MeasurementType]
+///
+/// ## Example
+///
+/// As an example, configuring the config with [super::DIMS_ENV] `2-10-1-5` and [super::TYPE_ENV]
+/// `dims`, will run a benchmark for cubes with a sidelength of 2 to 10, for 5 timesteps each time
 pub(crate) struct CubeConfig {
     typ: MeasurementType,
     from: usize,
@@ -24,8 +39,8 @@ impl Display for CubeConfig {
 }
 
 impl<'a> IntoIterator for &'a CubeConfig {
-    type Item = <<CubeConfig as GraphBenchmarkConfig<'a>>::Iter as IntoIterator>::Item;
-    type IntoIter = <CubeConfig as GraphBenchmarkConfig<'a>>::Iter;
+    type Item = usize;
+    type IntoIter = StepBy<Range<Self::Item>>;
 
     fn into_iter(self) -> Self::IntoIter {
         (self.from..self.to).step_by(self.step_by)
@@ -34,7 +49,6 @@ impl<'a> IntoIterator for &'a CubeConfig {
 
 impl<'a> GraphBenchmarkConfig<'a> for CubeConfig {
     type Error = CubeConfigError;
-    type Iter = StepBy<Range<usize>>;
 
     fn try_from_env() -> Result<Self, Self::Error>
     where
@@ -81,8 +95,13 @@ impl<'a> GraphBenchmarkConfig<'a> for CubeConfig {
     }
 }
 
+/// What to measure for.
+/// Can be configured by setting the [super::TYPE_ENV] environment variable.
+/// Permitted values are: `'dims'` and `'timesteps'`.
 enum MeasurementType {
+    /// Measure for a change in dimensionality for the cube
     Dims,
+    /// Measure for a change in timesteps for the cube
     Timesteps,
 }
 
@@ -120,7 +139,7 @@ impl TryFrom<String> for MeasurementType {
 }
 
 #[derive(Debug, Clone)]
-enum CubeConfigError {
+pub(crate) enum CubeConfigError {
     UnknownMeasurementType(String),
     InvalidConfigurationString(String),
 }
