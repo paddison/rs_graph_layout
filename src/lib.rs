@@ -6,7 +6,7 @@ use env_logger::Env;
 use graph_layout::GraphLayout;
 use log::{debug, info};
 use pyo3::prelude::*;
-use rust_sugiyama::{CrossingMinimization, C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT};
+use rust_sugiyama::configure::{C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT};
 
 pub type NodePositions = HashMap<usize, (isize, isize)>;
 
@@ -34,9 +34,9 @@ impl SugiyamaConfig {
             vertex_size=40,
             dummy_vertices=true,
             dummy_size=1.0,
-            crossing_minimization=rust_sugiyama::C_MINIMIZATION_DEFAULT.into(),
+            crossing_minimization=rust_sugiyama::configure::C_MINIMIZATION_DEFAULT.into(),
             transpose=false,
-            layering_type=rust_sugiyama::RANKING_TYPE_DEFAULT.into(),
+            layering_type=rust_sugiyama::configure::RANKING_TYPE_DEFAULT.into(),
             ))]
     fn new(
         vertex_size: isize,
@@ -70,10 +70,10 @@ impl Default for SugiyamaConfig {
     }
 }
 
-impl From<SugiyamaConfig> for rust_sugiyama::Config {
+impl From<SugiyamaConfig> for rust_sugiyama::configure::Config {
     fn from(config: SugiyamaConfig) -> Self {
         Self {
-            minimum_length: rust_sugiyama::MINIMUM_LENGTH_DEFAULT,
+            minimum_length: rust_sugiyama::configure::MINIMUM_LENGTH_DEFAULT,
             vertex_spacing: config.vertex_size as usize * 4,
             dummy_size: config.dummy_size,
             dummy_vertices: config.dummy_vertices,
@@ -151,6 +151,7 @@ pub fn create_layouts_sugiyama(
 }
 
 #[pymodule]
+#[allow(deprecated)]
 fn rs_graph_layout(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<SugiyamaConfig>()?;
     m.add_function(wrap_pyfunction!(create_layouts_original, m)?)?;
