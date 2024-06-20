@@ -573,8 +573,6 @@ dependencies = [
 [[package]]
 name = "rust-sugiyama"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23006bb38952f8710533662b61dc757da3876fac48644810df800ac660771e77"
 dependencies = [
  "log",
  "petgraph",

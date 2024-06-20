@@ -10,19 +10,34 @@ use rust_sugiyama::configure::{C_MINIMIZATION_DEFAULT, RANKING_TYPE_DEFAULT};
 
 pub type NodePositions = HashMap<usize, (isize, isize)>;
 
+/// Can be used to configure Sugiyama's algorithm.
+///
+/// Seef [rust_sugiyama::configure::Config] for more information.
 #[pyclass]
 #[derive(Clone)]
 pub struct SugiyamaConfig {
+    /// Size of the vertices
     #[pyo3(get, set)]
     vertex_size: isize,
+    /// use dummy vertices
     #[pyo3(get, set)]
     dummy_vertices: bool,
+    /// size of dummy vertices
     #[pyo3(get, set)]
     dummy_size: f64,
+    /// Which heuristic to use for crossing minimization.
+    /// permitted values are: `barycenter` and `median`.
     #[pyo3(get, set)]
     crossing_minimization: String,
+    /// Use the transpose function during crossing minimization.
+    /// May lead to fewer edge crossing but drastically increases runtime of the algorithm
     #[pyo3(get, set)]
     transpose: bool,
+    /// The method used to calculate the layer of each vertex. Permitted values are:
+    /// - `minimize`: try to minimize edge length
+    /// - `original`: use the original method of Temanejo
+    /// - `up`: move vertices as far up as possible
+    /// - `down`: move vertices as far down as possible
     #[pyo3(get, set)]
     layering_type: String,
 }

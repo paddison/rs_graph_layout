@@ -82,7 +82,11 @@ impl<'a> GraphBenchmarkConfig<'a> for CubeConfig {
     }
 
     fn throughput(&self, other: usize) -> u64 {
-        other as u64 * 3 * self.fixed_param as u64
+        (match self.typ {
+            MeasurementType::Dims => other * other * other * self.fixed_param,
+            MeasurementType::Timesteps => self.fixed_param * self.fixed_param * self.fixed_param * other,
+        }) as u64
+        //other as u64 * 3 * self.fixed_param as u64
     }
 
     fn build_graph(&self, size: usize) -> Vec<(usize, usize)> {
