@@ -2,7 +2,9 @@
 name = "rs_graph_layout"
 version = "0.1.0"
 edition = "2021"
-crate-type = ["cdylib"]
+
+[lib]
+crate-type = ["cdylib", "lib"]
 
 
 [dependencies]
@@ -19,6 +21,3 @@ graph_generator = { name = "graph_generator", git = "https://github.com/paddison
 [[bench]]
 name = "benches"
 harness = false
-
-[features]
-benchmark = []
