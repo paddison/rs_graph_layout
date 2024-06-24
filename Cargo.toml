@@ -7,7 +7,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 petgraph = "0.6.4"
-rust-sugiyama = { path = "../rust-sugiyama" }#"0.3.0"
+rust-sugiyama = "0.3.0"
 pyo3 = { version = "0.21.2", features = ["auto-initialize"] }
 log = "0.4.20"
 env_logger = "0.10.0"
@@ -19,9 +19,6 @@ graph_generator = { name = "graph_generator", git = "https://github.com/paddison
 [[bench]]
 name = "benches"
 harness = false
-
-#[build-dependencies]
-#pyo3-build-config = "0.21.2"
 
 [features]
 benchmark = []
